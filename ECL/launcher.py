@@ -1,97 +1,128 @@
 import sys
-import os
-import logging
 import colorama
-from .logger import get_logger, LoggerManager
-from .config import ConfigManager
+from pathlib import Path
+
+from .Core.logger import get_logger, LoggerManager
+from .Core.config import ConfigManager
 from .ui.ui import run_ui
-from .game.java import get_java_list
+from .Game.java import get_java_list
+
 
 logger = get_logger("launcher")
 
+
 class EuoraCraftLauncher:
-    # 启动器主类
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.config_manager = ConfigManager()
-        self.config = None
-        self.debug_mode = False
+        self.config: dict | None = None
+        self.debug_mode: bool = False
+        self.system_type: str = sys.platform
+        self.work_dir: Path = Path.cwd()
+        self.program_dir: Path = Path(sys.executable).parent
+        self.executable_path: Path = Path(sys.executable)
+        self.java_list: list[dict] = []
 
-    def _init_platform(self):
-        logger.info("当前工作系统：%s", sys.platform)
-        match sys.platform:
-            case "win32":
-                colorama.init()
-                logger.info("已初始化 colorama")
-            case "linux":
-                logger.info("未支持Linux")
-                sys.exit(0)
-            case "darwin":
-                logger.info("未支持macOS")
-                sys.exit(0)
-            case _:
-                logger.warning("未知平台：%s", sys.platform)
-                raise RuntimeError(f"不支持的操作系统平台: {sys.platform}")
+    def __init_system_test(self) -> bool:
+        logger.info(f"当前工作系统：{self.system_type}")
+        platform_handlers = {
+            "win32": lambda: (colorama.init(), logger.info("已初始化 colorama")),
+            "linux": lambda: (logger.info("未支持Linux"), sys.exit(0)),
+            "darwin": lambda: (logger.info("未支持macOS"), sys.exit(0)),
+        }
+        if self.system_type in platform_handlers:
+            platform_handlers[self.system_type]()
+            return self.system_type == "win32"
+        logger.warning(f"未知平台：{self.system_type}")
+        return False
 
-    def _log_environment_info(self):
-        logger.info("当前工作目录：%s", os.getcwd())
-        logger.info("执行文件路径：%s", sys.executable)
-        logger.info("程序目录：%s", os.path.dirname(sys.executable))
-
-    def _handle_version_info(self):
+    def __handle_version_info(self) -> None:
         launcher_cfg = self.config_manager.get_launcher_config()
         version = launcher_cfg.get("version", "未知")
         version_type = launcher_cfg.get("version_type", "unknown")
-        
-        logger.info("启动器版本: v%s", version)
-        logger.info("启动器版本类型: %s", version_type)
-        
-        match version_type:
-            case "dev":
-                logger.warning("当前为开发版本，可能存在不稳定因素，请谨慎使用！")
-            case "beta":
-                logger.info("当前为测试版本，可能存在部分问题，请注意反馈！")
-            case "release":
-                logger.info("当前为正式版本，祝您使用愉快！")
-            case _:
-                logger.warning("未知的版本类型：%s, 请移除配置文件并重启启动器", version_type)
+        logger.info(f"启动器版本: v{version}")
+        logger.info(f"启动器版本类型: {version_type}")
+        version_messages = {
+            "dev": ("warning", "当前为开发版本，可能存在不稳定因素，请谨慎使用！"),
+            "beta": ("info", "当前为测试版本，可能存在部分问题，请注意反馈！"),
+            "release": ("info", "当前为正式版本，祝您使用愉快！"),
+        }
+        if version_type in version_messages:
+            level, msg = version_messages[version_type]
+            getattr(logger, level)(msg)
+        else:
+            logger.warning(f"未知的版本类型：{version_type}, 请移除配置文件并重启启动器")
 
-    def initialize(self):
+    def __check_game_paths(self) -> None:
+        logger.info("检查游戏目录...")
+        
+        game_config = self.config_manager.get_game_config()
+        paths = game_config.get("minecraft_paths", [])
+        
+        has_default = any(
+            (p.get("path", "") if isinstance(p, dict) else p) == "./.minecraft"
+            for p in paths
+        )
+        
+        if not has_default:
+            logger.info("默认路径 ./.minecraft 不在配置中，自动添加")
+            self.config_manager.update_game_config({
+                "minecraft_paths": [{"name": "默认路径", "path": "./.minecraft", "protected": True}] + paths
+            })
+        
+        path_status = self.config_manager.check_game_paths_exist()
+        
+        for status in path_status:
+            if status["exists"]:
+                logger.info(f"游戏目录已就绪: {status['name']} ({status['path']})")
+            else:
+                if status["raw_path"] == "./.minecraft":
+                    logger.info(f"默认游戏目录不存在，正在创建: {status['raw_path']}")
+                    self.config_manager.init_game_paths()
+                    logger.info(f"默认游戏目录已创建: {status['path']}")
+                else:
+                    logger.warning(f"自定义游戏目录不存在: {status['name']} ({status['raw_path']})")
+
+    def init_launcher(self) -> bool:
         logger.info("EuoraCraft Launcher 启动中...")
+        
         try:
-            self._init_platform()
-            self._log_environment_info()
+            self.__init_system_test()
+            logger.info(f"当前工作目录：{self.work_dir}")
+            logger.info(f"执行文件路径：{self.executable_path}")
+            logger.info(f"程序目录：{self.program_dir}")
             
-            # 加载并校验配置
             self.config = self.config_manager.load()
             error = self.config_manager.validate()
             if error:
-                logger.error("配置校验失败: %s", error)
+                logger.error(f"配置校验失败: {error}")
                 sys.exit(1)
             
-            self._handle_version_info()
+            self.__handle_version_info()
+            self.__check_game_paths()
             
-            # 设置调试模式
             launcher_cfg = self.config_manager.get_launcher_config()
             self.debug_mode = bool(launcher_cfg.get("debug", False))
-            logger.info("调试模式: %s", self.debug_mode)
+            logger.info(f"调试模式: {self.debug_mode}")
             
             if self.debug_mode:
-                LoggerManager().set_level(logging.DEBUG)
+                LoggerManager().set_level(10)  # logging.DEBUG
                 logger.debug("调试模式已启用")
                 import json
-                logger.debug("完整配置内容：\n%s", json.dumps(self.config, ensure_ascii=False, indent=2))
+                logger.debug(f"完整配置内容：\n{json.dumps(self.config, ensure_ascii=False, indent=2)}")
             
-            # 获取 Java 列表
-            self.java_list = get_java_list()
+            self.java_list = get_java_list() or []
             if not self.java_list:
                 logger.warning("未找到任何 Java 安装")
-            logger.debug("Java 列表: %s", self.java_list)
-                
+            logger.debug(f"Java 列表: {self.java_list}")
+            
+            return True
+            
         except Exception as e:
-            logger.error("初始化启动器时出错: %s", e)
-            sys.exit(1)
+            logger.error(f"初始化启动器时出错: {e}")
+            return False
 
-    def run(self):
-        self.initialize()
+    def run(self) -> None:
+        if not self.init_launcher():
+            sys.exit(1)
         run_ui(self.config, self.debug_mode, self.config_manager)

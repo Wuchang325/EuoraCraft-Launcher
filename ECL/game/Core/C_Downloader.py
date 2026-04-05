@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, List, Tuple, Optional
+from typing import Callable
 from pathlib import Path
 import threading
 import requests
@@ -49,7 +49,7 @@ class Downloader:
         with self.lock:
             self.download_status = set_status
 
-    def __get_file_size(self, url: str) -> Optional[int]:
+    def __get_file_size(self, url: str) -> int | None:
         """获取文件大小，支持重试"""
         for attempt in range(self.max_retries):
             try:
@@ -187,7 +187,7 @@ class Downloader:
             self.output_log(f"重命名文件失败 {save_path}: {str(e)}")
             return False
 
-    def download_manager(self, download_list: List[Tuple[str, str]], max_threads: int) -> bool:
+    def download_manager(self, download_list: list[tuple[str, str]], max_threads: int) -> bool:
         """下载管理器"""
         if not download_list or max_threads <= 0:
             self.output_log("下载列表为空或线程数无效")

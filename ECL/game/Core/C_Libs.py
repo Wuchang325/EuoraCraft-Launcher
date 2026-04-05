@@ -103,29 +103,3 @@ class ApiUrl:  # Api数据结构
     def update_from_dict(self, api_url_dict: dict):
         for api_name in fields(self):
             if api_name.name in api_url_dict: setattr(self, api_name.name, api_url_dict[api_name.name].strip("/"))
-
-
-def parse_datetime(time_str: str):  # 前端不建议用
-    # 解析ISO时间字符串并转为UTC+8
-    # 解析时间字符串
-    original_dt = datetime.fromisoformat(time_str)
-    # 转换为UTC+8时间
-    converted_dt = original_dt.astimezone(timezone(timedelta(hours=8)))
-    return {
-        "Original": {
-            "Datetime": original_dt,
-            "Date": original_dt.date(),
-            "Time": original_dt.time(),
-            "Timezone": original_dt.tzinfo,
-            "Iso": original_dt.isoformat(),
-            "Offset": original_dt.utcoffset(),
-        },
-        "Converted": {
-            "Datetime": converted_dt,
-            "Date": converted_dt.date(),
-            "Time": converted_dt.time(),
-            "Timezone": converted_dt.tzinfo,
-            "Iso": converted_dt.isoformat(),
-            "Offset": converted_dt.utcoffset(),
-        }
-    }

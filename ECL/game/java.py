@@ -4,13 +4,12 @@ import sys
 import subprocess
 import platform
 from dataclasses import dataclass, field
-from typing import List, Optional, Set, Dict
-from pathlib import Path
+from typing import Optional, Dict
 
-from ..logger import get_logger
+from ..Core.logger import get_logger
 
 logger = get_logger("launcher")
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 try:
     import winreg
@@ -22,24 +21,23 @@ except ImportError:
 
 @dataclass
 class JavaInfo:
-    path: str 
-    version: str      
-    major_version: int  
-    java_type: str    
+    path: str
+    version: str
+    major_version: int
+    java_type: str
     arch: str
-    sources: List[str] = field(default_factory=list)
-    
+    sources: list[str] = field(default_factory=list)
+
     def __post_init__(self):
         self._unique_key = self._generate_unique_key()
-    
+
     def _generate_unique_key(self) -> str:
         bin_dir = os.path.dirname(self.path)
         java_home = os.path.dirname(bin_dir)
         return f"{java_home.lower()}_{self.major_version}"
-    
-    def __str__(self):
-        sources_str = ",".join(self.sources)
-        return f"{self.java_type} {self.major_version} ({self.version}), {self.arch}, 来源:[{sources_str}], 路径: {self.path}"
+
+    def __str__(self) -> str:
+        return f"{self.java_type} {self.major_version} ({self.version}), {self.arch}, 来源:[{','.join(self.sources)}], 路径: {self.path}"
 
 
 class JavaDetector:
@@ -55,29 +53,19 @@ class JavaDetector:
         os.path.expanduser(r"~\AppData\Local\Packages\Microsoft.4297127D64EC6_8wekyb3d8bbwe\LocalCache\Local\runtime"),
         os.path.expanduser(r"~\AppData\Local\Programs\Eclipse Adoptium"),
     ]
-    
-    MC_JAVA_COMPATIBILITY = {
-        (0, 11): [8],
-        (12, 16): [8],
-        (17, 20): [17],
-        (20, 20): [21], 
-        (21, 999): [21, 25, 17],
-    }
-    
+
     def __init__(self):
-        self.java_list: List[JavaInfo] = []
-        self._candidate_cache: Dict[str, tuple] = {} 
+        self.java_list: list[JavaInfo] = []
+        self._candidate_cache: dict[str, tuple] = {}
     
-    def detect_all(self) -> List[JavaInfo]:
+    def detect_all(self) -> list[JavaInfo]:
         logger.debug("开始扫描 Java...")
-        
         if IS_WINDOWS:
             self._scan_registry()
         self._scan_environment()
         self._scan_common_directories()
         self._validate_and_deduplicate()
         self.java_list.sort(key=lambda x: x.major_version, reverse=True)
-        
         logger.info(f"扫描完成，共找到 {len(self.java_list)} 个有效 Java")
         return self.java_list
     
@@ -283,7 +271,7 @@ class JavaDetector:
         except Exception:
             return None
     
-    def get_recommended_java(self, mc_version: str) -> Optional[JavaInfo]:
+    def get_recommended_java(self, mc_version: str) -> JavaInfo | None:
         if not self.java_list:
             return None
         
@@ -320,14 +308,9 @@ class JavaDetector:
         except Exception:
             return self.java_list[0]
 
-def get_java_list():
+def get_java_list() -> list[JavaInfo] | None:
     detector = JavaDetector()
-    java_list = detector.detect_all()
-    
-    if not java_list:
-        return False
-    else:
-        return java_list
+    return detector.detect_all() or None
 
 
 if __name__ == "__main__":

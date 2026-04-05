@@ -8,7 +8,7 @@ from uuid import uuid4
 import json
 import re
 import requests
-from ..logger import get_logger
+from ...Core.logger import get_logger
 
 logger = get_logger("ECLauncherCore")
 
@@ -278,12 +278,14 @@ class ECLauncherCore:
     def scan_versions_in_path(self, base_path: str | Path) -> list[dict]:
         base_path = Path(base_path)
         if not base_path.is_dir():
-            return [{"folder": str(base_path), "status": "failure", "loader_type": None, "version": None, "error": "路径不存在或不是目录"}]
+            logger.warning("扫描路径不存在或不是目录: %s", base_path)
+            return []
         
         # 严格检查：必须是包含 versions 目录的 Minecraft 路径
         versions_dir = base_path / "versions"
         if not versions_dir.is_dir():
-            return [{"folder": str(base_path), "status": "failure", "loader_type": None, "version": None, "error": "未找到 versions 目录，不是有效的 Minecraft 安装路径"}]
+            logger.debug("路径 %s 中没有 versions 目录，返回空列表", base_path)
+            return []
         
         results = []
         for child in versions_dir.iterdir():

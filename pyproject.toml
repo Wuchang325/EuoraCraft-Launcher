@@ -4,19 +4,72 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "EuoraCraft-Launcher"
-version = "0.0.1"
+version = "0.0.0"
 description = "EuoraCraft Launcher"
 authors = [
-    {name = "EuoraCraft Team", email = "your.email@example.com"},
+    {name = "ECLTeam", email = "eclteam@eclteam.freeqiye.com"},
 ]
 dependencies = [
-    # Add your dependencies here
+    "pywebview>=4.0",
+    "colorama>=0.4.0"
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "MIT"}
+keywords = ["minecraft", "launcher", "game"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Games/Entertainment",
+    "Operating System :: Microsoft :: Windows",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/EuoraCraft-Launcher"
+Repository = "https://github.com/yourusername/EuoraCraft-Launcher.git"
+Issues = "https://github.com/yourusername/EuoraCraft-Launcher/issues"
 
 [project.scripts]
 euoracraft-launcher = "main:main"
 
+[project.gui-scripts]
+EuoraCraft-Launcher = "main:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["ECL*", "ui*"]
+
+# === PSR 配置（新版格式）===
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+upload_to_pypi = false
+upload_to_release = true
+build_command = "pip install build && python -m build"
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "perf", "docs", "style", "refactor", "test", "chore"]
+
+[tool.semantic_release.remote]
+type = "github"
+
+[tool.euoracraft]
+version_type = "dev"
+build_number = 0
+
+[tool.pyinstaller]
+spec_file = "EuoraCraft Launcher.spec"
+onefile = false
+console = true
+icon = "assets/icon.ico"
+name = "EuoraCraft Launcher"
+
+[tool.release]
+enabled = true
+auto_tag = true
+platforms = ["windows"]
+architectures = ["x64"]

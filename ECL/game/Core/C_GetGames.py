@@ -1,20 +1,21 @@
-from . import C_Libs, C_FilesChecker
-from typing import Callable
+from collections.abc import Callable
 from pathlib import Path
 import requests
 import json
 
+from . import C_Libs, C_FilesChecker
+
 
 class GetGames:
     def __init__(self, files_checker: C_FilesChecker.FilesChecker | None = None):
-        self.files_checker = files_checker if files_checker else C_FilesChecker.FilesChecker()
+        self.files_checker = files_checker or C_FilesChecker.FilesChecker()
         self.output_log = self.__default_output_log
 
     @staticmethod
     def __default_output_log(log: str):
         print(log)
 
-    def set_output_log(self, output_function: Callable[[str, bool], None]) -> None:
+    def set_output_log(self, output_function: Callable[[str], None]) -> None:
         self.output_log = output_function
 
     def set_api_url(self, api_url_dict: dict):

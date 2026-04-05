@@ -1,2 +1,18 @@
-pywebview
-colorama
+# 运行时依赖
+pywebview>=4.0
+colorama>=0.4.0
+requests
+pyperclip
+python-semantic-release
+
+# 构建工具
+pyinstaller>=5.0
+
+# 版本管理（可选）
+tomli>=2.0.0; python_version<'3.11'
+tomli-w>=1.0.0
+
+# 开发依赖（可选）
+# pytest>=7.0.0
+# black>=22.0.0
+# flake8>=5.0.0
