@@ -449,7 +449,7 @@ class Api:
             java_dicts = []
             for java_info in java_list:
                 java_dicts.append({
-                    "path": java_info.path,
+                    "path": str(java_info.path),
                     "version": java_info.version,
                     "major_version": java_info.major_version,
                     "java_type": java_info.java_type,
