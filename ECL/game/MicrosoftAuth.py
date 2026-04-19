@@ -12,6 +12,10 @@ import msal
 import uuid
 import json
 import os
+import time
+import webbrowser
+import threading
+from concurrent.futures import ThreadPoolExecutor, Future
 
 from ..Core.logger import get_logger
 logger = get_logger(__name__)
@@ -534,6 +538,26 @@ class MultiAccountMinecraftAuth:
         alias = profile["name"]
         if not account_id:
             account_id = f"account_{len(self.accounts) + 1}"
+        
+        # 重复检测：检查是否已存在相同的微软账户（account_id 相同）
+        if account_id in self.accounts:
+            self._log(f"微软账户 '{alias}' 已存在")
+            # 清理临时缓存文件
+            cache_path = self.data_dir / "cache" / f"{cache_file}.bin"
+            if cache_path.exists():
+                cache_path.unlink()
+            return False
+        
+        # 重复检测：检查是否已存在相同玩家名的微软账户
+        for existing_account in self.accounts.values():
+            if existing_account.account_type == "microsoft" and existing_account.alias == alias:
+                self._log(f"玩家名 '{alias}' 的微软账户已存在")
+                # 清理临时缓存文件
+                cache_path = self.data_dir / "cache" / f"{cache_file}.bin"
+                if cache_path.exists():
+                    cache_path.unlink()
+                return False
+        
         account = MinecraftAccount(
             alias=alias,
             account_id=account_id,
@@ -549,16 +573,24 @@ class MultiAccountMinecraftAuth:
         return True
 
     # 添加离线账户（无需微软认证，用于单机游玩）
-    def add_offline_account(self, username: str) -> bool:
+    def add_offline_account(self, username: str) -> dict:
+        """添加离线账户，返回包含详细信息的字典"""
         self._ensure_initialized()
         if not username or not username.strip():
             self._log("用户名不能为空")
-            return False
+            return {"success": False, "message": "用户名不能为空"}
         username = username.strip()
+        
+        # 重复检测：检查是否已存在相同玩家名的账户（任何类型）
         for account in self.accounts.values():
-            if account.account_type == "offline" and account.alias == username:
-                self._log(f"离线账户 '{username}' 已存在")
-                return False
+            if account.alias == username:
+                if account.account_type == "offline":
+                    msg = f"离线账户 '{username}' 已存在"
+                else:
+                    msg = f"玩家名 '{username}' 已被微软账户使用"
+                self._log(msg)
+                return {"success": False, "message": msg}
+        
         import hashlib
         offline_uuid_str = hashlib.md5(f"OfflinePlayer:{username}".encode("utf-8")).hexdigest()
         formatted_uuid = f"{offline_uuid_str[:8]}-{offline_uuid_str[8:12]}-{offline_uuid_str[12:16]}-{offline_uuid_str[16:20]}-{offline_uuid_str[20:32]}"
@@ -577,7 +609,7 @@ class MultiAccountMinecraftAuth:
         if len(self.accounts) == 1:
             self._set_current_account(account)
         self._log(f"离线账户 '{username}' 添加成功")
-        return True
+        return {"success": True, "message": f"离线账户 '{username}' 添加成功"}
 
     # 获取所有已保存账户
     def list_accounts(self) -> list | None:
@@ -820,12 +852,120 @@ class MultiAccountMinecraftAuth:
         self._pending_flow = flow
         self._pending_cache_file = cache_file
         self._pending_app = app
+        # 重置轮询状态
+        self._poll_interval = flow.get("interval", 5)
+        self._poll_expires_at = flow.get("expires_at", 0)
         return {
             "status": "pending",
             "userCode": flow["user_code"],
             "verificationUri": flow["verification_uri"],
-            "message": flow.get("message", "")
+            "message": flow.get("message", ""),
+            "interval": self._poll_interval
         }
+
+    # 轮询检测微软登录状态（非阻塞检查）
+    def poll_microsoft_login(self) -> dict:
+        """检查登录状态，返回是否已完成授权（不消耗 device_code）"""
+        self._ensure_initialized()
+        if not hasattr(self, "_pending_flow") or not self._pending_flow:
+            return {"status": "error", "message": "没有待处理的登录流程"}
+        
+        # 检查是否已过期
+        if hasattr(self, "_poll_expires_at") and time.time() > self._poll_expires_at:
+            self._cleanup_pending_login()
+            return {"status": "error", "message": "登录超时，请重试"}
+        
+        # 检查是否已有结果（之前已成功获取token）
+        if hasattr(self, "_poll_result") and self._poll_result:
+            return {"status": "ready", "message": "授权完成，等待完成登录"}
+        
+        # 检查后台任务状态
+        if hasattr(self, "_poll_future") and self._poll_future:
+            if self._poll_future.done():
+                try:
+                    result = self._poll_future.result()
+                    
+                    # 检查错误类型
+                    error = result.get("error")
+                    if error == "authorization_pending":
+                        # 用户还未授权，重置 future 允许下次重新尝试
+                        self._poll_future = None
+                        return {"status": "pending", "message": "等待用户授权..."}
+                    elif error:
+                        # 其他错误
+                        self._cleanup_poll()
+                        return {"status": "error", "message": result.get("error_description", f"登录失败: {error}")}
+                    
+                    # 成功获取访问令牌，保存结果
+                    if "access_token" in result:
+                        self._poll_result = result
+                        return {"status": "ready", "message": "授权完成，等待完成登录"}
+                    
+                    # 重置 future 允许下次重新尝试
+                    self._poll_future = None
+                    return {"status": "pending", "message": "等待用户授权..."}
+                    
+                except Exception as e:
+                    error_str = str(e)
+                    if "authorization_pending" in error_str or "AADSTS70016" in error_str:
+                        # 用户还未授权，重置 future 允许下次重新尝试
+                        self._poll_future = None
+                        return {"status": "pending", "message": "等待用户授权..."}
+                    # 其他错误
+                    self._cleanup_poll()
+                    return {"status": "error", "message": f"轮询出错: {error_str}"}
+            else:
+                # 任务仍在运行
+                return {"status": "pending", "message": "等待用户授权..."}
+        
+        # 没有正在运行的任务，启动新的后台任务
+        try:
+            if not hasattr(self, "_poll_executor") or self._poll_executor is None:
+                self._poll_executor = ThreadPoolExecutor(max_workers=1)
+            
+            # 提交后台任务执行 MSAL 的阻塞调用
+            self._poll_future = self._poll_executor.submit(
+                self._pending_app.acquire_token_by_device_flow,
+                self._pending_flow
+            )
+            
+            # 立即返回等待状态
+            return {"status": "pending", "message": "等待用户授权..."}
+            
+        except Exception as e:
+            error_str = str(e)
+            logger.error(f"启动轮询任务失败: {error_str}")
+            return {"status": "pending", "message": "等待用户授权..."}
+    
+    def _cleanup_poll(self):
+        """清理轮询状态"""
+        if hasattr(self, "_poll_future"):
+            if self._poll_future and not self._poll_future.done():
+                self._poll_future.cancel()
+            self._poll_future = None
+            delattr(self, "_poll_future")
+        if hasattr(self, "_poll_executor") and self._poll_executor is not None:
+            self._poll_executor.shutdown(wait=False)
+            self._poll_executor = None
+            delattr(self, "_poll_executor")
+    
+    def _cleanup_pending_login(self):
+        """清理待处理的登录状态"""
+        self._cleanup_poll()
+        self._pending_flow = None
+        self._pending_app = None
+        self._poll_result = None
+        if hasattr(self, "_pending_cache_file"):
+            self._pending_cache_file = None
+    
+    def open_browser_for_auth(self, url: str) -> bool:
+        """使用系统默认浏览器打开授权页面"""
+        try:
+            webbrowser.open(url)
+            return True
+        except Exception as e:
+            logger.error(f"打开浏览器失败: {e}")
+            return False
 
     # 完成异步微软登录（用户已在浏览器授权后调用）
     def complete_microsoft_login(self) -> dict:
@@ -833,7 +973,13 @@ class MultiAccountMinecraftAuth:
         if not hasattr(self, "_pending_flow") or not self._pending_flow:
             return {"success": False, "message": "没有待处理的登录流程"}
         try:
-            result = self._pending_app.acquire_token_by_device_flow(self._pending_flow)
+            # 优先使用轮询过程中保存的结果
+            if hasattr(self, "_poll_result") and self._poll_result:
+                result = self._poll_result
+                self._poll_result = None
+            else:
+                result = self._pending_app.acquire_token_by_device_flow(self._pending_flow)
+            
             if "access_token" not in result:
                 return {"success": False, "message": f"登录失败: {result.get('error_description', '未知错误')}"}
             email = ""
@@ -855,6 +1001,24 @@ class MultiAccountMinecraftAuth:
                 return {"success": False, "message": "该账户未购买 Minecraft Java 版"}
             alias = profile["name"]
             account_id = result.get("id_token_claims", {}).get("home_account_id") or f"account_{len(self.accounts) + 1}"
+            
+            # 重复检测：检查是否已存在相同的微软账户（account_id 相同）
+            if account_id in self.accounts:
+                cache_path = self.data_dir / "cache" / f"{self._pending_cache_file}.bin"
+                if cache_path.exists():
+                    cache_path.unlink()
+                self._cleanup_pending_login()
+                return {"success": False, "message": f"微软账户 '{alias}' 已存在"}
+            
+            # 重复检测：检查是否已存在相同玩家名的微软账户
+            for existing_account in self.accounts.values():
+                if existing_account.account_type == "microsoft" and existing_account.alias == alias:
+                    cache_path = self.data_dir / "cache" / f"{self._pending_cache_file}.bin"
+                    if cache_path.exists():
+                        cache_path.unlink()
+                    self._cleanup_pending_login()
+                    return {"success": False, "message": f"玩家名 '{alias}' 的微软账户已存在"}
+            
             account = MinecraftAccount(
                 alias=alias,
                 account_id=account_id,
@@ -868,9 +1032,7 @@ class MultiAccountMinecraftAuth:
             self._save_cache(self._pending_app.token_cache)
             if len(self.accounts) == 1:
                 self._set_current_account(account)
-            self._pending_flow = None
-            self._pending_cache_file = None
-            self._pending_app = None
+            self._cleanup_pending_login()
             return {
                 "success": True,
                 "message": f"账户 '{alias}' 添加成功",

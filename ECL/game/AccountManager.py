@@ -107,37 +107,53 @@ class AccountManager:
             return None
 
     def add_offline_account(self, username: str) -> dict[str, Any]:
+        """添加离线账户，返回原始数据供 ui.py 包装"""
         if not self._ensure_initialized():
-            return {"success": False, "message": "账户管理器未初始化"}
+            raise RuntimeError("账户管理器未初始化")
         try:
             result = self._auth.add_offline_account(username)
-            if result:
+            # 检查返回的结果
+            if isinstance(result, dict):
+                if not result.get("success"):
+                    # 传递具体的错误信息（如重复检测失败）
+                    raise RuntimeError(result.get("message", "添加离线账户失败"))
+                # 添加成功，查找新添加的账户信息
                 accounts = self._auth.get_all_accounts_info()
                 for acc in accounts:
                     if acc["alias"] == username and acc["type"] == "offline":
                         return {
-                            "success": True,
-                            "message": f"离线账户 '{username}' 添加成功",
-                            "account": acc
+                            "account": acc,
+                            "message": result.get("message", f"离线账户 '{username}' 添加成功")
                         }
-                return {"success": True, "message": f"离线账户 '{username}' 添加成功"}
+                return {"message": result.get("message", f"离线账户 '{username}' 添加成功")}
             else:
-                return {"success": False, "message": f"添加离线账户 '{username}' 失败"}
+                # 兼容旧版布尔返回值
+                if result:
+                    accounts = self._auth.get_all_accounts_info()
+                    for acc in accounts:
+                        if acc["alias"] == username and acc["type"] == "offline":
+                            return {
+                                "account": acc,
+                                "message": f"离线账户 '{username}' 添加成功"
+                            }
+                    return {"message": f"离线账户 '{username}' 添加成功"}
+                else:
+                    raise RuntimeError(f"添加离线账户 '{username}' 失败")
         except Exception as e:
             logger.error(f"添加离线账户失败: {e}")
-            return {"success": False, "message": str(e)}
+            raise
 
     def start_microsoft_login(self) -> dict[str, Any]:
+        """开始微软登录流程，返回原始数据供 ui.py 包装"""
         if not self._ensure_initialized():
-            return {"success": False, "message": "账户管理器未初始化"}
+            raise RuntimeError("账户管理器未初始化")
         try:
             result = self._auth.start_microsoft_login()
             if result.get("status") == "error":
-                return {"success": False, "message": result.get("message", "启动登录失败")}
+                raise RuntimeError(result.get("message", "启动登录失败"))
             if result.get("status") == "success":
-                return {"success": True, "status": "completed", "message": "登录成功"}
+                return {"status": "completed", "message": "登录成功"}
             return {
-                "success": True,
                 "status": "pending",
                 "userCode": result.get("userCode", ""),
                 "verificationUri": result.get("verificationUri", ""),
@@ -145,48 +161,77 @@ class AccountManager:
             }
         except Exception as e:
             logger.error(f"启动微软登录失败: {e}")
-            return {"success": False, "message": str(e)}
+            raise
+
+    def poll_microsoft_login(self) -> dict[str, Any]:
+        """轮询检测微软登录状态"""
+        if not self._ensure_initialized():
+            raise RuntimeError("账户管理器未初始化")
+        try:
+            # 调用底层方法检查状态（内部会管理后台任务）
+            return self._auth.poll_microsoft_login()
+        except Exception as e:
+            logger.error(f"轮询微软登录状态失败: {e}")
+            raise
+
+    def open_browser_for_auth(self, url: str) -> bool:
+        """使用系统默认浏览器打开授权页面"""
+        if not self._ensure_initialized():
+            return False
+        try:
+            return self._auth.open_browser_for_auth(url)
+        except Exception as e:
+            logger.error(f"打开浏览器失败: {e}")
+            return False
 
     def complete_microsoft_login(self) -> dict[str, Any]:
+        """完成微软登录流程，返回原始数据供 ui.py 包装"""
         if not self._ensure_initialized():
-            return {"success": False, "message": "账户管理器未初始化"}
+            raise RuntimeError("账户管理器未初始化")
         try:
-            return self._auth.complete_microsoft_login()
+            result = self._auth.complete_microsoft_login()
+            # 将结果转换为统一的返回格式
+            if result.get("success"):
+                return {
+                    "account": result.get("account"),
+                    "message": result.get("message", "登录成功")
+                }
+            else:
+                raise RuntimeError(result.get("message", "登录失败"))
         except Exception as e:
             logger.error(f"完成微软登录失败: {e}")
-            return {"success": False, "message": str(e)}
+            raise
 
     def switch_account(self, account_id: str) -> dict[str, Any]:
+        """切换账户，返回原始数据供 ui.py 包装"""
         if not self._ensure_initialized():
-            return {"success": False, "message": "账户管理器未初始化"}
+            raise RuntimeError("账户管理器未初始化")
         try:
             result = self._auth.switch_account(account_id)
             if result:
                 account = self._auth.get_account_by_id(account_id)
-                return {
-                    "success": True,
-                    "message": f"已切换到账户: {account.alias if account else account_id}"
-                }
+                return {"message": f"已切换到账户: {account.alias if account else account_id}"}
             else:
-                return {"success": False, "message": f"未找到账户: {account_id}"}
+                raise RuntimeError(f"未找到账户: {account_id}")
         except Exception as e:
             logger.error(f"切换账户失败: {e}")
-            return {"success": False, "message": str(e)}
+            raise
 
     def remove_account(self, account_id: str) -> dict[str, Any]:
+        """移除账户，返回原始数据供 ui.py 包装"""
         if not self._ensure_initialized():
-            return {"success": False, "message": "账户管理器未初始化"}
+            raise RuntimeError("账户管理器未初始化")
         try:
             account = self._auth.get_account_by_id(account_id)
             alias = account.alias if account else account_id
             result = self._auth.remove_account(account_id)
             if result:
-                return {"success": True, "message": f"账户 '{alias}' 已移除"}
+                return {"message": f"账户 '{alias}' 已移除"}
             else:
-                return {"success": False, "message": f"移除账户 '{alias}' 失败"}
+                raise RuntimeError(f"移除账户 '{alias}' 失败")
         except Exception as e:
             logger.error(f"移除账户失败: {e}")
-            return {"success": False, "message": str(e)}
+            raise
 
     def get_current_account_token(self) -> str | None:
         if not self._ensure_initialized():
@@ -198,22 +243,23 @@ class AccountManager:
             return None
 
     def refresh_account_profile(self, account_id: str) -> dict[str, Any]:
+        """刷新账户档案，返回原始数据供 ui.py 包装"""
         if not self._ensure_initialized():
-            return {"success": False, "message": "账户管理器未初始化"}
+            raise RuntimeError("账户管理器未初始化")
         try:
             account = self._auth.get_account_by_id(account_id)
             if not account:
-                return {"success": False, "message": f"未找到账户: {account_id}"}
+                raise RuntimeError(f"未找到账户: {account_id}")
             if account.account_type == "offline":
-                return {"success": True, "message": "离线账户无需刷新"}
+                return {"message": "离线账户无需刷新"}
             result = self._auth.refresh_account_profile(account.alias)
             if result:
-                return {"success": True, "message": f"账户 '{account.alias}' 档案已刷新"}
+                return {"message": f"账户 '{account.alias}' 档案已刷新"}
             else:
-                return {"success": False, "message": f"刷新账户 '{account.alias}' 档案失败"}
+                raise RuntimeError(f"刷新账户 '{account.alias}' 档案失败")
         except Exception as e:
             logger.error(f"刷新账户档案失败: {e}")
-            return {"success": False, "message": str(e)}
+            raise
 
 
 _account_manager: AccountManager | None = None

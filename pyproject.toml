@@ -15,7 +15,7 @@ dependencies = [
 ]
 requires-python = ">=3.11"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "GPL-3.0"}
 keywords = ["minecraft", "launcher", "game"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -29,9 +29,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/EuoraCraft-Launcher"
-Repository = "https://github.com/yourusername/EuoraCraft-Launcher.git"
-Issues = "https://github.com/yourusername/EuoraCraft-Launcher/issues"
+Homepage = "https://github.com/ECLTeam/EuoraCraft-Launcher"
+Repository = "https://github.com/ECLTeam/EuoraCraft-Launcher.git"
+Issues = "https://github.com/ECLTeam/EuoraCraft-Launcher/issues"
 
 [project.scripts]
 euoracraft-launcher = "main:main"
@@ -43,7 +43,6 @@ EuoraCraft-Launcher = "main:main"
 where = ["."]
 include = ["ECL*", "ui*"]
 
-# === PSR 配置（新版格式）===
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
 branch = "main"
@@ -62,7 +61,7 @@ version_type = "dev"
 build_number = 0
 
 [tool.pyinstaller]
-spec_file = "EuoraCraft Launcher.spec"
+spec_file = "EuoraCraft-Launcher.spec"
 onefile = false
 console = true
 icon = "assets/icon.ico"

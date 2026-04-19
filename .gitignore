@@ -18,3 +18,5 @@ logs/
 *.log
 *.tmp
 *.pyc
+
+ECL_Core/

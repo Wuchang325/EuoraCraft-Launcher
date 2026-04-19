@@ -1,9 +1,13 @@
 import os
 import sys
 import base64
+import json
+import uuid
 import requests
 import webview
 import ctypes
+import threading
+from datetime import datetime
 from ctypes import wintypes
 from pathlib import Path
 from tkinter import Tk, filedialog
@@ -32,9 +36,15 @@ class MEMORYSTATUSEX(ctypes.Structure):
 logger = get_logger("ui")
 
 
-def get_resource_path(relative_path: str) -> Path:
-    # PyInstaller 打包后资源位于 _MEIPASS 临时目录，开发时直接用当前工作目录
-    return Path(getattr(sys, '_MEIPASS', Path.cwd())) / relative_path
+def _get_project_root() -> Path:
+    """获取项目根目录，与 C_Skin.py 中的实现保持一致"""
+    return Path(__file__).resolve().parents[3]
+
+
+def get_resource_path(relative_path: str) -> str:
+    """返回字符串路径，兼容 PyWebView 等需要字符串的场景"""
+    p = Path(getattr(sys, '_MEIPASS', Path.cwd())) / relative_path
+    return str(p.resolve())
 
 
 def make_json_safe(obj: Any) -> Any:
@@ -81,6 +91,8 @@ class Api:
             'update_background_config',
             'update_background_image',
             'load_image_from_url',
+            'fetch_image_data_url',
+            'get_avatar_data_url',
             'load_image_from_local',
             'select_local_image',
             'get_game_config',
@@ -90,6 +102,8 @@ class Api:
             'update_theme_config',
             'get_download_config',
             'update_download_config',
+            'get_mouse_effect_config',
+            'update_mouse_effect_config',
             'get_locale_config',
             'update_locale_config',
             'select_directory',
@@ -98,16 +112,31 @@ class Api:
             'get_minecraft_versions',
             'get_fabric_versions',
             'install_version',
+            'uninstall_version',
             'ping',
+            # 用户协议 API
+            'get_user_agreement_status',
+            'save_user_agreement',
+            'clear_user_agreement',
             # 账户管理 API
             'get_accounts',
             'get_current_account',
             'add_offline_account',
             'start_microsoft_login',
+            'poll_microsoft_login',
             'complete_microsoft_login',
             'switch_account',
             'remove_account',
-            'refresh_account_profile'
+            'refresh_account_profile',
+            # 实例管理 API
+            'get_game_instances',
+            'get_instance_details',
+            'create_instance',
+            'update_instance',
+            'delete_instance',
+            'launch_instance',
+            'stop_instance',
+            'get_instance_logs'
         ]
 
     def ping(self) -> dict[str, Any]:
@@ -116,6 +145,58 @@ class Api:
             "data": {"status": "ok", "message": "API连接正常"},
             "message": "Pong"
         }
+
+    def get_user_agreement_status(self) -> dict[str, Any]:
+        try:
+            agreement_file = _get_project_root() / "ECL_Libs" / "user_agreement.json"
+            if agreement_file.exists():
+                with open(agreement_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                return {
+                    "success": True,
+                    "data": {"accepted": data.get("accepted", False), "uuid": data.get("uuid", "")},
+                    "message": "获取用户协议状态成功"
+                }
+            return {
+                "success": True,
+                "data": {"accepted": False, "uuid": ""},
+                "message": "用户协议未同意"
+            }
+        except Exception as e:
+            logger.error(f"获取用户协议状态失败: {e}")
+            return {"success": False, "message": str(e), "data": None}
+
+    def save_user_agreement(self) -> dict[str, Any]:
+        try:
+            agreement_file = _get_project_root() / "ECL_Libs" / "user_agreement.json"
+            agreement_file.parent.mkdir(parents=True, exist_ok=True)
+            data = {
+                "accepted": True,
+                "uuid": str(uuid.uuid4())
+            }
+            with open(agreement_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return {
+                "success": True,
+                "data": data,
+                "message": "用户协议已保存"
+            }
+        except Exception as e:
+            logger.error(f"保存用户协议失败: {e}")
+            return {"success": False, "message": str(e), "data": None}
+
+    def clear_user_agreement(self) -> dict[str, Any]:
+        try:
+            agreement_file = _get_project_root() / "ECL_Libs" / "user_agreement.json"
+            if agreement_file.exists():
+                agreement_file.unlink()
+            return {
+                "success": True,
+                "message": "用户协议已清除"
+            }
+        except Exception as e:
+            logger.error(f"清除用户协议失败: {e}")
+            return {"success": False, "message": str(e)}
 
     def minimize_window(self) -> dict[str, Any]:
         try:
@@ -204,7 +285,6 @@ class Api:
             self.__ensure_config_loaded()
             config = self._config_manager.get_background_config()
             path_str = config.get("path", "")
-            logger.info(f"[get_background_image] 配置中的路径: {path_str}")
             
             if not path_str:
                 return {"success": False, "message": "未设置背景图", "data": None}
@@ -212,7 +292,6 @@ class Api:
             # 统一路径分隔符为系统分隔符
             path_str = path_str.replace('/', os.sep).replace('\\', os.sep)
             path = Path(path_str)
-            logger.info(f"[get_background_image] 解析后的路径: {path}")
             
             if not path.exists():
                 logger.error(f"[get_background_image] 文件不存在: {path}")
@@ -220,12 +299,10 @@ class Api:
             
             try:
                 image_data = path.read_bytes()
-                logger.info(f"[get_background_image] 读取成功: {len(image_data)} bytes")
             except Exception as e:
                 logger.error(f"[get_background_image] 读取文件失败: {e}")
                 return {"success": False, "message": f"读取背景图文件失败: {e}", "data": None}
             
-            # 前端 img 标签要求完整的 data URI scheme，不同格式的 MIME 类型必须准确声明
             mime_map = {
                 '.png': 'image/png',
                 '.gif': 'image/gif',
@@ -236,7 +313,6 @@ class Api:
             mime_type = mime_map.get(path.suffix.lower(), 'image/jpeg')
             base64_data = base64.b64encode(image_data).decode('utf-8')
             
-            logger.info(f"[get_background_image] Base64 长度: {len(base64_data)}")
             
             return {
                 "success": True,
@@ -254,8 +330,6 @@ class Api:
     def update_background_config(self, background_config: dict[str, Any]) -> dict[str, Any]:
         try:
             self.__ensure_config_loaded()
-            
-            # 前端多次读取本地文件会有权限问题，后端一次性转 base64 后前端直接用内存数据渲染
             if background_config.get("type") == "local" and background_config.get("path"):
                 path = Path(background_config["path"])
                 if path.exists():
@@ -334,6 +408,139 @@ class Api:
         except Exception as e:
             logger.error(f"加载网络图片失败: {e}")
             return {"success": False, "message": str(e), "data": None}
+
+    def fetch_image_data_url(self, url: str) -> dict[str, Any]:
+        try:
+            logger.info(f"[fetch_image_data_url] 开始下载图片: {url}")
+
+            # 添加浏览器 User-Agent 和其他头，避免被 Cloudflare 误判为机器人
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'image',
+                'Sec-Fetch-Mode': 'no-cors',
+                'Sec-Fetch-Site': 'cross-site',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            }
+
+            # 重试机制：最多重试 3 次
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"[fetch_image_data_url] 第 {attempt + 1} 次尝试")
+                    response = requests.get(url, timeout=15, headers=headers)
+                    response.raise_for_status()
+
+                    content_type = response.headers.get('content-type', '')
+                    logger.info(f"[fetch_image_data_url] Content-Type: {content_type}")
+
+                    # 检查是否真的是图片
+                    if not content_type.startswith('image/'):
+                        # 如果是 HTML 响应（可能是 Cloudflare 错误页面），记录内容
+                        if 'text/html' in content_type:
+                            logger.warning(f"[fetch_image_data_url] 收到 HTML 响应，可能被 Cloudflare 拦截: {response.text[:200]}...")
+                            if attempt < max_retries - 1:
+                                logger.info(f"[fetch_image_data_url] {2 ** attempt} 秒后重试...")
+                                import time
+                                time.sleep(2 ** attempt)  # 指数退避
+                                continue
+                        return {"success": False, "message": f"URL不是图片类型: {content_type}", "data": None}
+
+                    # 验证图片数据大小
+                    if len(response.content) < 100:
+                        logger.warning(f"[fetch_image_data_url] 图片数据过小: {len(response.content)} bytes")
+                        if attempt < max_retries - 1:
+                            logger.info(f"[fetch_image_data_url] {2 ** attempt} 秒后重试...")
+                            import time
+                            time.sleep(2 ** attempt)
+                            continue
+                        return {"success": False, "message": "图片数据不完整", "data": None}
+
+                    data_url = f"data:{content_type};base64,{base64.b64encode(response.content).decode('utf-8')}"
+                    logger.info(f"[fetch_image_data_url] 成功获取图片 ({len(response.content)} bytes)")
+                    return {
+                        "success": True,
+                        "message": "图片代理获取成功",
+                        "data": {"dataUrl": data_url}
+                    }
+
+                except requests.exceptions.HTTPError as http_err:
+                    status_code = http_err.response.status_code if http_err.response else None
+                    error_msg = str(http_err)
+                    logger.warning(f"[fetch_image_data_url] HTTP 错误 {status_code}: {error_msg}")
+
+                    # 检查是否为 5xx 错误（包括响应为 None 但错误信息中包含 5xx 的情况）
+                    is_5xx_error = False
+                    if status_code and 500 <= status_code < 600:
+                        is_5xx_error = True
+                    elif status_code is None and ('5' in error_msg and 'Server Error' in error_msg):
+                        # 尝试从错误信息中提取状态码
+                        import re
+                        match = re.search(r'(\d{3})\s+Server Error', error_msg)
+                        if match and 500 <= int(match.group(1)) < 600:
+                            is_5xx_error = True
+
+                    # 对于 5xx 错误，重试
+                    if is_5xx_error:
+                        if attempt < max_retries - 1:
+                            logger.info(f"[fetch_image_data_url] 服务器错误，{2 ** attempt} 秒后重试...")
+                            import time
+                            time.sleep(2 ** attempt)
+                            continue
+
+                    # 对于其他错误，直接返回失败
+                    return {"success": False, "message": f"HTTP 错误 {status_code}: {error_msg}", "data": None}
+
+                except requests.exceptions.RequestException as req_err:
+                    logger.warning(f"[fetch_image_data_url] 请求异常: {req_err}")
+                    if attempt < max_retries - 1:
+                        logger.info(f"[fetch_image_data_url] {2 ** attempt} 秒后重试...")
+                        import time
+                        time.sleep(2 ** attempt)
+                        continue
+                    return {"success": False, "message": f"网络请求失败: {str(req_err)}", "data": None}
+
+            # 所有重试都失败了
+            return {"success": False, "message": f"重试 {max_retries} 次后仍失败", "data": None}
+
+        except Exception as e:
+            logger.error(f"代理获取图片失败: {e}")
+            return {"success": False, "message": str(e), "data": None}
+
+    def get_avatar_data_url(self, uuid: str, type_name: str = "Mojang", custom_server: str | None = None, size: int = 64, use_default_skin: bool = False) -> dict[str, Any]:
+        """
+        获取玩家头像的 base64 data URL
+        从皮肤中提取头部并处理为指定尺寸
+        
+        Args:
+            uuid: 玩家UUID
+            type_name: 皮肤服务器类型
+            custom_server: 自定义服务器地址
+            size: 头像尺寸
+            use_default_skin: 是否使用默认皮肤（True: 使用默认皮肤，False: 尝试API获取）
+        """
+        try:
+            from ..Game.Core import get_avatar_data_url as get_avatar_func
+            
+            # 由前端明确指定是否使用默认皮肤，不再通过UUID判断
+            data_url = get_avatar_func(uuid, type_name, custom_server, size, use_default_skin)
+            return {
+                "success": True,
+                "message": "头像生成成功",
+                "data": {"dataUrl": data_url}
+            }
+        except ImportError as e:
+            logger.error(f"[get_avatar_data_url] PIL 库未安装: {e}")
+            return {"success": False, "message": "PIL (Pillow) 库未安装，无法处理头像", "data": None}
+        except Exception as e:
+            logger.error(f"[get_avatar_data_url] 生成头像失败: {e}")
+            return {"success": False, "message": f"头像生成失败: {str(e)}", "data": None}
 
     def load_image_from_local(self, file_path: str) -> dict[str, Any]:
         try:
@@ -514,6 +721,27 @@ class Api:
             logger.error(f"更新下载配置失败: {e}")
             return {"success": False, "message": str(e)}
 
+    def get_mouse_effect_config(self) -> dict[str, Any]:
+        """获取鼠标点击效果配置"""
+        try:
+            self.__ensure_config_loaded()
+            config = self._config_manager.get_mouse_effect_config()
+            safe_config = make_json_safe(config)
+            return {"success": True, "message": "鼠标点击效果配置获取成功", "data": safe_config}
+        except Exception as e:
+            logger.error(f"获取鼠标点击效果配置失败: {e}")
+            return {"success": False, "message": f"获取鼠标点击效果配置失败: {str(e)}", "data": None}
+
+    def update_mouse_effect_config(self, mouse_effect_config: dict[str, Any]) -> dict[str, Any]:
+        """更新鼠标点击效果配置"""
+        try:
+            self.__ensure_config_loaded()
+            self._config_manager.update_mouse_effect_config(mouse_effect_config)
+            return {"success": True, "message": "鼠标点击效果配置已更新"}
+        except Exception as e:
+            logger.error(f"更新鼠标点击效果配置失败: {e}")
+            return {"success": False, "message": f"更新鼠标点击效果配置失败: {str(e)}"}
+
     def get_locale_config(self) -> dict[str, Any]:
         try:
             self.__ensure_config_loaded()
@@ -657,6 +885,7 @@ class Api:
             return {"success": False, "message": str(e), "data": []}
 
     def install_version(self, version_id: str, options: dict[str, Any] = None) -> dict[str, Any]:
+        """安装游戏版本，支持原版、Fabric、Forge、NeoForged、Quilt"""
         try:
             options = options or {}
             game_path = options.get("gamePath")
@@ -665,23 +894,76 @@ class Api:
             
             config = self._config_manager.get_game_config()
             if not game_path:
-                game_path = config.get("minecraft_path", "./.minecraft")
+                # 获取第一个游戏路径
+                paths = config.get("minecraft_paths", ["./.minecraft"])
+                game_path = paths[0] if isinstance(paths[0], str) else paths[0].get("path", "./.minecraft")
             
-            core = ECLauncherCore(game_path)
+            core = ECLauncherCore()
             
-            if loader == "fabric":
-                result = core.install(version_id, "fabric", loader_version or None)
-            else:
-                result = core.install(version_id)
-            
-            return {
-                "success": result,
-                "data": {"version": version_id, "loader": loader or "vanilla"},
-                "message": "安装任务已启动" if result else "安装失败"
+            # 映射加载器类型
+            loader_map = {
+                "": "vanilla",
+                "vanilla": "vanilla",
+                "fabric": "fabric",
+                "forge": "forge",
+                "neoforged": "neoforged",
+                "neoforge": "neoforged",
+                "quilt": "quilt"
             }
+            
+            loader_type = loader_map.get(loader.lower() if loader else "", "vanilla")
+            
+            logger.info(f"开始安装版本: {version_id}, 加载器: {loader_type}, 路径: {game_path}")
+            
+            if loader_type == "vanilla":
+                result = core.install(version_id, game_path=game_path)
+            else:
+                result = core.install(version_id, loader_type, loader_version or None, game_path)
+            
+            if result:
+                return {
+                    "success": True,
+                    "data": {"version": version_id, "loader": loader_type, "gamePath": str(game_path)},
+                    "message": f"{version_id} ({loader_type}) 安装成功"
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": "安装失败，请检查日志",
+                    "data": None
+                }
         except Exception as e:
             logger.error(f"安装版本失败: {e}")
             return {"success": False, "message": str(e), "data": None}
+
+    def uninstall_version(self, version_id: str, game_path: str = None) -> dict[str, Any]:
+        """卸载游戏版本"""
+        try:
+            from shutil import rmtree
+            
+            # 获取游戏路径
+            if not game_path:
+                config = self._config_manager.get_game_config()
+                paths = config.get("minecraft_paths", ["./.minecraft"])
+                game_path = paths[0] if isinstance(paths[0], str) else paths[0].get("path", "./.minecraft")
+            
+            game_path = Path(game_path)
+            version_dir = game_path / "versions" / version_id
+            
+            if not version_dir.exists():
+                return {"success": False, "message": "版本不存在"}
+            
+            # 删除版本目录
+            rmtree(version_dir)
+            logger.info(f"版本 {version_id} 已卸载")
+            
+            return {
+                "success": True,
+                "message": f"版本 {version_id} 已卸载"
+            }
+        except Exception as e:
+            logger.error(f"卸载版本失败: {e}")
+            return {"success": False, "message": str(e)}
 
     # ==================== 账户管理 API ====================
 
@@ -722,19 +1004,87 @@ class Api:
         try:
             account_manager = get_account_manager()
             result = account_manager.add_offline_account(username)
-            return make_json_safe(result)
+            return {"success": True, "data": make_json_safe(result), "message": result.get("message", "添加成功")}
         except Exception as e:
             logger.error(f"添加离线账户失败: {e}")
             return {"success": False, "message": str(e)}
 
     def start_microsoft_login(self) -> dict[str, Any]:
-        """开始微软账户登录流程"""
+        """开始微软账户登录流程，自动打开浏览器并复制授权码"""
         try:
             account_manager = get_account_manager()
             result = account_manager.start_microsoft_login()
-            return make_json_safe(result)
+            
+            # 如果处于 pending 状态，自动打开浏览器并复制授权码
+            if result.get("status") == "pending":
+                verification_uri = result.get("verificationUri", "")
+                user_code = result.get("userCode", "")
+                
+                # 自动复制授权码到剪贴板
+                if user_code:
+                    try:
+                        import pyperclip
+                        pyperclip.copy(user_code)
+                        logger.info(f"授权码已自动复制: {user_code}")
+                    except Exception as copy_err:
+                        logger.warning(f"自动复制授权码失败: {copy_err}")
+                
+                # 自动打开浏览器
+                if verification_uri:
+                    try:
+                        import webbrowser
+                        webbrowser.open(verification_uri)
+                        logger.info(f"已自动打开浏览器: {verification_uri}")
+                    except Exception as open_err:
+                        logger.warning(f"自动打开浏览器失败: {open_err}")
+            
+            return {"success": True, "data": make_json_safe(result), "message": result.get("message", "请完成授权")}
         except Exception as e:
             logger.error(f"启动微软登录失败: {e}")
+            return {"success": False, "message": str(e)}
+
+    def poll_microsoft_login(self) -> dict[str, Any]:
+        """轮询检测微软登录状态"""
+        try:
+            account_manager = get_account_manager()
+            result = account_manager.poll_microsoft_login()
+            
+            # 如果登录完成，自动置顶窗口
+            if result.get("status") == "ready":
+                try:
+                    if webview.windows:
+                        window = webview.windows[0]
+                        # 恢复窗口（如果最小化）
+                        window.restore()
+                        # 激活窗口到前台
+                        window.on_top = True
+                        window.on_top = False
+                        """try:
+                            # Windows 平台特定方法
+                            import ctypes
+                            from ctypes import wintypes
+                            
+                            user32 = ctypes.windll.user32
+                            
+                            # 使用 FindWindow 找到窗口句柄（根据窗口标题）
+                            hwnd = user32.FindWindowW(None, window.title)
+                            if hwnd:
+                                # 强制窗口到前台
+                                user32.SetForegroundWindow(hwnd)
+                                user32.BringWindowToTop(hwnd)
+                        except Exception as platform_err:
+                            logger.debug(f"平台特定置顶方法失败: {platform_err}")
+                            # 备用方法：使用 pywebview 的 on_top
+                            window.on_top = True
+                            window.on_top = False"""
+                        
+                        logger.info("登录完成，窗口已置顶")
+                except Exception as window_err:
+                    logger.warning(f"窗口置顶失败: {window_err}")
+            
+            return make_json_safe(result)
+        except Exception as e:
+            logger.error(f"轮询微软登录状态失败: {e}")
             return {"success": False, "message": str(e)}
 
     def complete_microsoft_login(self) -> dict[str, Any]:
@@ -742,7 +1092,7 @@ class Api:
         try:
             account_manager = get_account_manager()
             result = account_manager.complete_microsoft_login()
-            return make_json_safe(result)
+            return {"success": True, "data": make_json_safe(result), "message": result.get("message", "登录成功")}
         except Exception as e:
             logger.error(f"完成微软登录失败: {e}")
             return {"success": False, "message": str(e)}
@@ -752,7 +1102,7 @@ class Api:
         try:
             account_manager = get_account_manager()
             result = account_manager.switch_account(account_id)
-            return make_json_safe(result)
+            return {"success": True, "data": make_json_safe(result), "message": result.get("message", "切换成功")}
         except Exception as e:
             logger.error(f"切换账户失败: {e}")
             return {"success": False, "message": str(e)}
@@ -762,7 +1112,7 @@ class Api:
         try:
             account_manager = get_account_manager()
             result = account_manager.remove_account(account_id)
-            return make_json_safe(result)
+            return {"success": True, "data": make_json_safe(result), "message": result.get("message", "移除成功")}
         except Exception as e:
             logger.error(f"移除账户失败: {e}")
             return {"success": False, "message": str(e)}
@@ -772,9 +1122,281 @@ class Api:
         try:
             account_manager = get_account_manager()
             result = account_manager.refresh_account_profile(account_id)
-            return make_json_safe(result)
+            return {"success": True, "data": make_json_safe(result), "message": result.get("message", "刷新成功")}
         except Exception as e:
             logger.error(f"刷新账户档案失败: {e}")
+            return {"success": False, "message": str(e)}
+
+    # ==================== 实例管理 API ====================
+
+    def get_game_instances(self) -> dict[str, Any]:
+        """获取所有正在运行的游戏进程列表"""
+        try:
+            from ..Game.Core.ECLauncherCore import ECLauncherCore
+            core = ECLauncherCore()
+            running_instances = core.instances_manager.get_instances_info()
+            
+            # 构建前端需要的格式
+            instances = []
+            for inst in running_instances:
+                proc = inst.get("Instance")
+                is_running = proc.poll() is None if proc else False
+                instances.append({
+                    "id": inst.get("ID"),
+                    "name": inst.get("Name", "未知实例"),
+                    "version": inst.get("Name", ""),
+                    "isRunning": is_running,
+                    "type": inst.get("Type", "MinecraftClient"),
+                    "startTime": getattr(proc, '_start_time', None)
+                })
+            
+            return {
+                "success": True,
+                "data": instances,
+                "message": f"获取到 {len(instances)} 个运行中的进程"
+            }
+        except Exception as e:
+            logger.error(f"获取运行中的进程列表失败: {e}")
+            return {"success": False, "message": str(e), "data": []}
+
+    def get_instance_details(self, instance_id: str) -> dict[str, Any]:
+        """获取单个实例详情"""
+        try:
+            self.__ensure_config_loaded()
+            instance = self._config_manager.get_instance(instance_id)
+            if not instance:
+                return {"success": False, "message": "实例不存在", "data": None}
+            
+            # 检查是否正在运行
+            from ..Game.Core.ECLauncherCore import ECLauncherCore
+            core = ECLauncherCore()
+            running_instances = core.instances_manager.get_instances_info()
+            instance["isRunning"] = any(inst["ID"] == instance_id for inst in running_instances)
+            
+            return {
+                "success": True,
+                "data": instance,
+                "message": "获取实例详情成功"
+            }
+        except Exception as e:
+            logger.error(f"获取实例详情失败: {e}")
+            return {"success": False, "message": str(e), "data": None}
+
+    def create_instance(self, request: dict[str, Any]) -> dict[str, Any]:
+        """创建新实例"""
+        try:
+            self.__ensure_config_loaded()
+            
+            # 验证必填字段
+            name = request.get("name", "").strip()
+            version = request.get("version", "").strip()
+            
+            if not name:
+                return {"success": False, "message": "实例名称不能为空"}
+            if not version:
+                return {"success": False, "message": "游戏版本不能为空"}
+            
+            # 获取游戏路径
+            game_config = self._config_manager.get_game_config()
+            game_paths = game_config.get("minecraft_paths", ["./.minecraft"])
+            game_path = request.get("gamePath", game_paths[0] if isinstance(game_paths[0], str) else game_paths[0].get("path", "./.minecraft"))
+            
+            # 构建实例配置
+            instance = {
+                "name": name,
+                "version": version,
+                "gamePath": game_path,
+                "icon": request.get("icon", ""),
+                "javaArgs": request.get("javaArgs", ""),
+                "memory": request.get("memory", {"min": 512, "max": 4096}),
+                "playTime": 0,
+                "lastPlayed": None,
+                "modCount": 0,
+                "createdAt": datetime.now().isoformat()
+            }
+            
+            instance_id = self._config_manager.add_instance(instance)
+            instance["id"] = instance_id
+            
+            return {
+                "success": True,
+                "data": instance,
+                "message": "实例创建成功"
+            }
+        except Exception as e:
+            logger.error(f"创建实例失败: {e}")
+            return {"success": False, "message": str(e)}
+
+    def update_instance(self, instance_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        """更新实例配置"""
+        try:
+            self.__ensure_config_loaded()
+            
+            # 检查实例是否存在
+            instance = self._config_manager.get_instance(instance_id)
+            if not instance:
+                return {"success": False, "message": "实例不存在"}
+            
+            # 不允许修改的字段
+            forbidden_keys = {"id", "createdAt", "playTime", "lastPlayed"}
+            updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+            
+            success = self._config_manager.update_instance(instance_id, updates)
+            if success:
+                return {"success": True, "message": "实例更新成功"}
+            else:
+                return {"success": False, "message": "实例更新失败"}
+        except Exception as e:
+            logger.error(f"更新实例失败: {e}")
+            return {"success": False, "message": str(e)}
+
+    def delete_instance(self, instance_id: str) -> dict[str, Any]:
+        """删除实例"""
+        try:
+            self.__ensure_config_loaded()
+            
+            # 检查实例是否存在
+            instance = self._config_manager.get_instance(instance_id)
+            if not instance:
+                return {"success": False, "message": "实例不存在"}
+            
+            # 检查实例是否正在运行
+            from ..Game.Core.ECLauncherCore import ECLauncherCore
+            core = ECLauncherCore()
+            running_instances = core.instances_manager.get_instances_info()
+            if any(inst["ID"] == instance_id for inst in running_instances):
+                return {"success": False, "message": "实例正在运行，无法删除"}
+            
+            success = self._config_manager.delete_instance(instance_id)
+            if success:
+                return {"success": True, "message": "实例删除成功"}
+            else:
+                return {"success": False, "message": "实例删除失败"}
+        except Exception as e:
+            logger.error(f"删除实例失败: {e}")
+            return {"success": False, "message": str(e)}
+
+    def launch_instance(self, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """启动游戏实例（支持直接传入参数启动，无需先保存配置）"""
+        try:
+            self.__ensure_config_loaded()
+            
+            from ..Game.Core.ECLauncherCore import ECLauncherCore
+            core = ECLauncherCore()
+            
+            # 获取当前账户
+            from ..Game.AccountManager import get_account_manager
+            account_manager = get_account_manager()
+            current_account = account_manager.get_current_account()
+            
+            if not current_account:
+                return {"success": False, "message": "请先选择一个账户"}
+            
+            # 解析启动参数
+            if params is None:
+                params = {}
+            
+            # 获取游戏路径
+            game_config = self._config_manager.get_game_config()
+            game_paths = game_config.get("minecraft_paths", ["./.minecraft"])
+            default_game_path = game_paths[0] if isinstance(game_paths[0], str) else game_paths[0].get("path", "./.minecraft")
+            game_path = params.get("gamePath", default_game_path)
+            
+            # 获取版本名
+            version_name = params.get("version", "")
+            if not version_name:
+                return {"success": False, "message": "游戏版本不能为空"}
+            
+            # 获取Java路径
+            java_path = params.get("javaPath", "")
+            if not java_path:
+                java_auto = game_config.get("java_auto", True)
+                if java_auto:
+                    from ..Game import java
+                    java_list = java.get_java_list()
+                    if java_list:
+                        java_list.sort(key=lambda x: x.version, reverse=True)
+                        java_path = str(java_list[0].path)
+                    else:
+                        return {"success": False, "message": "未找到Java安装"}
+                else:
+                    java_path = game_config.get("java_path", "")
+                    if not java_path:
+                        return {"success": False, "message": "未配置Java路径"}
+            
+            # 获取内存配置
+            memory = params.get("memory", {"min": 512, "max": 4096})
+            max_memory = memory.get("max", 4096) if isinstance(memory, dict) else 4096
+            
+            # 启动游戏
+            player_name = current_account.get("alias", "Player")
+            auth_uuid = current_account.get("uuid", "")
+            access_token = current_account.get("accessToken", "None") if current_account.get("type") == "microsoft" else "None"
+            user_type = "msa" if current_account.get("type") == "microsoft" else "legacy"
+            
+            instance_id = ""
+            
+            def launch():
+                nonlocal instance_id
+                try:
+                    instance_id = core.launch_minecraft(
+                        java_path=java_path,
+                        game_path=game_path,
+                        version_name=version_name,
+                        max_use_ram=max_memory,
+                        player_name=player_name,
+                        user_type=user_type,
+                        auth_uuid=auth_uuid,
+                        access_token=access_token
+                    )
+                except Exception as e:
+                    logger.error(f"启动游戏失败: {e}")
+            
+            thread = threading.Thread(target=launch, daemon=True)
+            thread.start()
+            thread.join(timeout=2)  # 等待启动完成以获取 instance_id
+            
+            if instance_id:
+                return {
+                    "success": True,
+                    "message": "实例启动中",
+                    "data": {"instanceId": instance_id, "version": version_name}
+                }
+            else:
+                return {"success": False, "message": "启动游戏失败"}
+        except Exception as e:
+            logger.error(f"启动实例失败: {e}")
+            return {"success": False, "message": str(e)}
+
+    def stop_instance(self, instance_id: str) -> dict[str, Any]:
+        """停止实例"""
+        try:
+            from ..Game.Core.ECLauncherCore import ECLauncherCore
+            core = ECLauncherCore()
+            
+            # 检查实例是否正在运行
+            running_instances = core.instances_manager.get_instances_info()
+            if not any(inst["ID"] == instance_id for inst in running_instances):
+                return {"success": False, "message": "实例未在运行"}
+            
+            # 停止实例（强制终止）
+            core.instances_manager.stop_instance(instance_id, terminate=True)
+            
+            return {"success": True, "message": "实例已停止"}
+        except Exception as e:
+            logger.error(f"停止实例失败: {e}")
+            return {"success": False, "message": str(e)}
+
+    def get_instance_logs(self, instance_id: str) -> dict[str, Any]:
+        """获取实例日志（预留接口）"""
+        try:
+            return {
+                "success": True,
+                "data": {"logs": []},
+                "message": "日志功能待实现"
+            }
+        except Exception as e:
+            logger.error(f"获取实例日志失败: {e}")
             return {"success": False, "message": str(e)}
 
 
@@ -803,7 +1425,7 @@ def run_ui(config=None, debug=False, config_manager=None):
     api = Api(config_manager)
     
     html_path = "http://localhost:5173"
-    #html_path = resource_path("./index.html")
+    #html_path = get_resource_path("./ui/dist/index.html")
     
     window = webview.create_window(
         title,

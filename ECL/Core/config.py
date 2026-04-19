@@ -42,7 +42,15 @@ class ConfigManager:
                 "mode": "system",
                 "primary_color": "#0078d4",
                 "blur_amount": 6
-            }
+            },
+            "mouse_effect": {
+                "enabled": False,
+                "color": "45,175,255",
+                "scale": 1.5,
+                "opacity": 1.0,
+                "speed": 1.0
+            },
+            "instances": []
         }
     ]
 
@@ -122,6 +130,37 @@ class ConfigManager:
             
             config[0][section][key] = new_val
             logger.info(f"环境变量覆盖配置: [{section}][{key}] -> {new_val}")
+    
+    def _auto_complete_missing_config(self) -> None:
+        """自动补全缺失的配置项"""
+        if not self.config or not isinstance(self.config, list) or len(self.config) == 0:
+            logger.warning("配置为空，使用默认配置")
+            self.config = self.DEFAULT_CONFIG.copy()
+            return
+        
+        default_config = self.DEFAULT_CONFIG[0]
+        current_config = self.config[0]
+        
+        config_updated = False
+        
+        # 检查并补全缺失的顶级配置项
+        for section, default_section_config in default_config.items():
+            if section not in current_config:
+                logger.info(f"补全缺失的配置项: {section}")
+                current_config[section] = default_section_config.copy()
+                config_updated = True
+            else:
+                # 检查并补全缺失的子配置项
+                if isinstance(default_section_config, dict) and isinstance(current_config[section], dict):
+                    for key, default_value in default_section_config.items():
+                        if key not in current_config[section]:
+                            logger.info(f"补全缺失的配置项: {section}.{key}")
+                            current_config[section][key] = default_value
+                            config_updated = True
+        
+        if config_updated:
+            logger.info("检测到缺失配置项，已自动补全")
+            self.save(self.config)
 
     def load(self) -> list[dict[str, Any]]:
         if not self.config_path.exists():
@@ -134,6 +173,10 @@ class ConfigManager:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     self.config = json.load(f)
                 logger.info("配置文件读取完成")
+                
+                # 自动补全缺失的配置项
+                self._auto_complete_missing_config()
+                
             except Exception as e:
                 logger.error(f"读取配置文件失败: {e}")
                 raise
@@ -288,14 +331,14 @@ class ConfigManager:
             self._init_single_path(path)
 
     def get_theme_config(self) -> dict[str, Any]:
-        return self.config[0].get("theme", {"mode": "system", "primary_color": "#87CEEB", "blur_amount": 6})
+        return self.config[0].get("theme", {"mode": "system", "primary_color": "#0078d4", "blur_amount": 6})
 
     def update_theme_config(self, theme_config: dict[str, Any]) -> None:
         if not self.config:
             self.config = self.DEFAULT_CONFIG.copy()
         self.config[0]["theme"] = {
             "mode": theme_config.get("mode", "system"),
-            "primary_color": theme_config.get("primary_color", "#87CEEB"),
+            "primary_color": theme_config.get("primary_color", "#0078d4"),
             "blur_amount": theme_config.get("blur_amount", 6)
         }
         self.save(self.config)
@@ -310,6 +353,79 @@ class ConfigManager:
         self.config[0]["download"] = download_config
         self.save(self.config)
         logger.info("下载配置已更新")
+
+    def get_mouse_effect_config(self) -> dict[str, Any]:
+        return self.config[0].get("mouse_effect", {"enabled": False, "color": "45,175,255", "scale": 1.5, "opacity": 1.0, "speed": 1.0})
+
+    def update_mouse_effect_config(self, mouse_effect_config: dict[str, Any]) -> None:
+        if not self.config:
+            self.config = self.DEFAULT_CONFIG.copy()
+        self.config[0]["mouse_effect"] = {
+            "enabled": mouse_effect_config.get("enabled", False),
+            "color": mouse_effect_config.get("color", "45,175,255"),
+            "scale": mouse_effect_config.get("scale", 1.5),
+            "opacity": mouse_effect_config.get("opacity", 1.0),
+            "speed": mouse_effect_config.get("speed", 1.0)
+        }
+        self.save(self.config)
+        logger.info("鼠标点击效果配置已更新")
+
+    def get_instances_config(self) -> list[dict[str, Any]]:
+        """获取所有游戏实例配置"""
+        return self.config[0].get("instances", []) if self.config else []
+
+    def add_instance(self, instance: dict[str, Any]) -> str:
+        """添加新实例，返回实例ID"""
+        if not self.config:
+            self.config = self.DEFAULT_CONFIG.copy()
+        if "instances" not in self.config[0]:
+            self.config[0]["instances"] = []
+        
+        import uuid
+        instance_id = str(uuid.uuid4())
+        instance["id"] = instance_id
+        instance["created_at"] = str(uuid.uuid4())  # 临时时间戳
+        
+        self.config[0]["instances"].append(instance)
+        self.save(self.config)
+        logger.info(f"实例已创建: {instance_id}")
+        return instance_id
+
+    def update_instance(self, instance_id: str, updates: dict[str, Any]) -> bool:
+        """更新实例配置"""
+        if not self.config or "instances" not in self.config[0]:
+            return False
+        
+        for i, inst in enumerate(self.config[0]["instances"]):
+            if inst.get("id") == instance_id:
+                self.config[0]["instances"][i].update(updates)
+                self.save(self.config)
+                logger.info(f"实例已更新: {instance_id}")
+                return True
+        return False
+
+    def delete_instance(self, instance_id: str) -> bool:
+        """删除实例"""
+        if not self.config or "instances" not in self.config[0]:
+            return False
+        
+        for i, inst in enumerate(self.config[0]["instances"]):
+            if inst.get("id") == instance_id:
+                self.config[0]["instances"].pop(i)
+                self.save(self.config)
+                logger.info(f"实例已删除: {instance_id}")
+                return True
+        return False
+
+    def get_instance(self, instance_id: str) -> dict[str, Any] | None:
+        """获取单个实例配置"""
+        if not self.config or "instances" not in self.config[0]:
+            return None
+        
+        for inst in self.config[0]["instances"]:
+            if inst.get("id") == instance_id:
+                return inst
+        return None
 
     def __repr__(self) -> str:
         return f"ConfigManager(config_path='{str(self.config_path)}')"
