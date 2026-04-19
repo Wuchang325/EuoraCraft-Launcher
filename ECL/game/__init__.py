@@ -6,7 +6,6 @@ from .Core import (
     ECLauncherCore,
     Downloader,
     FilesChecker,
-    GetGames,
     ApiUrl,
 )
 from .AccountManager import get_account_manager, AccountManager
@@ -16,7 +15,6 @@ __all__ = [
     "ECLauncherCore",
     "Downloader",
     "FilesChecker",
-    "GetGames",
     "ApiUrl",
     "get_account_manager",
     "AccountManager",

@@ -130,13 +130,9 @@ class Api:
             'refresh_account_profile',
             # 实例管理 API
             'get_game_instances',
-            'get_instance_details',
-            'create_instance',
-            'update_instance',
-            'delete_instance',
             'launch_instance',
-            'stop_instance',
-            'get_instance_logs'
+            'get_launch_status',
+            'stop_instance'
         ]
 
     def ping(self) -> dict[str, Any]:
@@ -818,123 +814,20 @@ class Api:
             return {"success": False, "message": str(e), "data": None}
 
     def scan_versions_in_path(self, path: str | list[str] | list[dict[str, str]]) -> dict[str, Any]:
-        try:
-            # 前端组件库可能传递多层嵌套结构，需要递归解包直到拿到实际字符串路径
-            actual_path = path
-            while isinstance(actual_path, list) and len(actual_path) > 0:
-                first = actual_path[0]
-                if isinstance(first, dict) and "path" in first:
-                    actual_path = first["path"]
-                    break
-                actual_path = first
-            
-            if isinstance(actual_path, list):
-                if len(actual_path) == 0:
-                    return {"success": False, "message": "路径列表为空", "data": None}
-                actual_path = actual_path[0]
-            
-            if not isinstance(actual_path, (str, Path)):
-                actual_path = str(actual_path)
-            
-            if not actual_path or not isinstance(actual_path, (str, Path)):
-                return {"success": False, "message": f"无效的路径类型: {type(actual_path)}", "data": None}
+        """【待对接】扫描本地游戏目录中的已安装版本"""
+        return {"success": True, "message": "扫描版本功能待对接", "data": []}
 
-            core = ECLauncherCore()
-            versions = core.scan_versions_in_path(actual_path)
-            safe_versions = make_json_safe(versions)
-            logger.debug(f"在路径 {actual_path} 中扫描到 {len(versions)} 个版本")
-            return {
-                "success": True,
-                "data": safe_versions,
-                "message": f"扫描完成，共找到 {len(versions)} 个版本"
-            }
-        except Exception as e:
-            logger.error(f"扫描版本失败: {e}")
-            return {"success": False, "message": str(e), "data": None}
-
-    def get_minecraft_versions(self, filter: dict[str, Any] = None) -> dict[str, Any]:
-        try:
-            versions = ECLauncherCore.get_version_list()
-            version_list = []
-            for v in versions:
-                version_list.append({
-                    "id": v.get("id", ""),
-                    "type": v.get("type", "release"),
-                    "releaseTime": v.get("releaseTime", ""),
-                    "url": v.get("url", "")
-                })
-            return {
-                "success": True,
-                "data": version_list,
-                "message": f"获取到 {len(version_list)} 个版本"
-            }
-        except Exception as e:
-            logger.error(f"获取 Minecraft 版本列表失败: {e}")
-            return {"success": False, "message": str(e), "data": []}
+    def get_minecraft_versions(self, filter_type: str = None) -> dict[str, Any]:
+        """【待对接】获取官方 Minecraft 版本列表"""
+        return {"success": True, "message": "版本列表功能待对接", "data": []}
 
     def get_fabric_versions(self) -> dict[str, Any]:
-        try:
-            versions = ECLauncherCore.get_fabric_loader_list()
-            return {
-                "success": True,
-                "data": versions[:20] if versions else [],
-                "message": f"获取到 {len(versions)} 个 Fabric 版本"
-            }
-        except Exception as e:
-            logger.error(f"获取 Fabric 版本列表失败: {e}")
-            return {"success": False, "message": str(e), "data": []}
+        """【待对接】获取 Fabric Loader 版本列表"""
+        return {"success": True, "message": "Fabric 版本列表功能待对接", "data": []}
 
     def install_version(self, version_id: str, options: dict[str, Any] = None) -> dict[str, Any]:
-        """安装游戏版本，支持原版、Fabric、Forge、NeoForged、Quilt"""
-        try:
-            options = options or {}
-            game_path = options.get("gamePath")
-            loader = options.get("loader", "")
-            loader_version = options.get("loaderVersion", "")
-            
-            config = self._config_manager.get_game_config()
-            if not game_path:
-                # 获取第一个游戏路径
-                paths = config.get("minecraft_paths", ["./.minecraft"])
-                game_path = paths[0] if isinstance(paths[0], str) else paths[0].get("path", "./.minecraft")
-            
-            core = ECLauncherCore()
-            
-            # 映射加载器类型
-            loader_map = {
-                "": "vanilla",
-                "vanilla": "vanilla",
-                "fabric": "fabric",
-                "forge": "forge",
-                "neoforged": "neoforged",
-                "neoforge": "neoforged",
-                "quilt": "quilt"
-            }
-            
-            loader_type = loader_map.get(loader.lower() if loader else "", "vanilla")
-            
-            logger.info(f"开始安装版本: {version_id}, 加载器: {loader_type}, 路径: {game_path}")
-            
-            if loader_type == "vanilla":
-                result = core.install(version_id, game_path=game_path)
-            else:
-                result = core.install(version_id, loader_type, loader_version or None, game_path)
-            
-            if result:
-                return {
-                    "success": True,
-                    "data": {"version": version_id, "loader": loader_type, "gamePath": str(game_path)},
-                    "message": f"{version_id} ({loader_type}) 安装成功"
-                }
-            else:
-                return {
-                    "success": False,
-                    "message": "安装失败，请检查日志",
-                    "data": None
-                }
-        except Exception as e:
-            logger.error(f"安装版本失败: {e}")
-            return {"success": False, "message": str(e), "data": None}
+        """【待对接】安装游戏版本"""
+        return {"success": False, "message": "安装功能待对接", "data": None}
 
     def uninstall_version(self, version_id: str, game_path: str = None) -> dict[str, Any]:
         """卸载游戏版本"""
@@ -1159,214 +1052,13 @@ class Api:
             logger.error(f"获取运行中的进程列表失败: {e}")
             return {"success": False, "message": str(e), "data": []}
 
-    def get_instance_details(self, instance_id: str) -> dict[str, Any]:
-        """获取单个实例详情"""
-        try:
-            self.__ensure_config_loaded()
-            instance = self._config_manager.get_instance(instance_id)
-            if not instance:
-                return {"success": False, "message": "实例不存在", "data": None}
-            
-            # 检查是否正在运行
-            from ..Game.Core.ECLauncherCore import ECLauncherCore
-            core = ECLauncherCore()
-            running_instances = core.instances_manager.get_instances_info()
-            instance["isRunning"] = any(inst["ID"] == instance_id for inst in running_instances)
-            
-            return {
-                "success": True,
-                "data": instance,
-                "message": "获取实例详情成功"
-            }
-        except Exception as e:
-            logger.error(f"获取实例详情失败: {e}")
-            return {"success": False, "message": str(e), "data": None}
-
-    def create_instance(self, request: dict[str, Any]) -> dict[str, Any]:
-        """创建新实例"""
-        try:
-            self.__ensure_config_loaded()
-            
-            # 验证必填字段
-            name = request.get("name", "").strip()
-            version = request.get("version", "").strip()
-            
-            if not name:
-                return {"success": False, "message": "实例名称不能为空"}
-            if not version:
-                return {"success": False, "message": "游戏版本不能为空"}
-            
-            # 获取游戏路径
-            game_config = self._config_manager.get_game_config()
-            game_paths = game_config.get("minecraft_paths", ["./.minecraft"])
-            game_path = request.get("gamePath", game_paths[0] if isinstance(game_paths[0], str) else game_paths[0].get("path", "./.minecraft"))
-            
-            # 构建实例配置
-            instance = {
-                "name": name,
-                "version": version,
-                "gamePath": game_path,
-                "icon": request.get("icon", ""),
-                "javaArgs": request.get("javaArgs", ""),
-                "memory": request.get("memory", {"min": 512, "max": 4096}),
-                "playTime": 0,
-                "lastPlayed": None,
-                "modCount": 0,
-                "createdAt": datetime.now().isoformat()
-            }
-            
-            instance_id = self._config_manager.add_instance(instance)
-            instance["id"] = instance_id
-            
-            return {
-                "success": True,
-                "data": instance,
-                "message": "实例创建成功"
-            }
-        except Exception as e:
-            logger.error(f"创建实例失败: {e}")
-            return {"success": False, "message": str(e)}
-
-    def update_instance(self, instance_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-        """更新实例配置"""
-        try:
-            self.__ensure_config_loaded()
-            
-            # 检查实例是否存在
-            instance = self._config_manager.get_instance(instance_id)
-            if not instance:
-                return {"success": False, "message": "实例不存在"}
-            
-            # 不允许修改的字段
-            forbidden_keys = {"id", "createdAt", "playTime", "lastPlayed"}
-            updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
-            
-            success = self._config_manager.update_instance(instance_id, updates)
-            if success:
-                return {"success": True, "message": "实例更新成功"}
-            else:
-                return {"success": False, "message": "实例更新失败"}
-        except Exception as e:
-            logger.error(f"更新实例失败: {e}")
-            return {"success": False, "message": str(e)}
-
-    def delete_instance(self, instance_id: str) -> dict[str, Any]:
-        """删除实例"""
-        try:
-            self.__ensure_config_loaded()
-            
-            # 检查实例是否存在
-            instance = self._config_manager.get_instance(instance_id)
-            if not instance:
-                return {"success": False, "message": "实例不存在"}
-            
-            # 检查实例是否正在运行
-            from ..Game.Core.ECLauncherCore import ECLauncherCore
-            core = ECLauncherCore()
-            running_instances = core.instances_manager.get_instances_info()
-            if any(inst["ID"] == instance_id for inst in running_instances):
-                return {"success": False, "message": "实例正在运行，无法删除"}
-            
-            success = self._config_manager.delete_instance(instance_id)
-            if success:
-                return {"success": True, "message": "实例删除成功"}
-            else:
-                return {"success": False, "message": "实例删除失败"}
-        except Exception as e:
-            logger.error(f"删除实例失败: {e}")
-            return {"success": False, "message": str(e)}
-
     def launch_instance(self, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        """启动游戏实例（支持直接传入参数启动，无需先保存配置）"""
-        try:
-            self.__ensure_config_loaded()
-            
-            from ..Game.Core.ECLauncherCore import ECLauncherCore
-            core = ECLauncherCore()
-            
-            # 获取当前账户
-            from ..Game.AccountManager import get_account_manager
-            account_manager = get_account_manager()
-            current_account = account_manager.get_current_account()
-            
-            if not current_account:
-                return {"success": False, "message": "请先选择一个账户"}
-            
-            # 解析启动参数
-            if params is None:
-                params = {}
-            
-            # 获取游戏路径
-            game_config = self._config_manager.get_game_config()
-            game_paths = game_config.get("minecraft_paths", ["./.minecraft"])
-            default_game_path = game_paths[0] if isinstance(game_paths[0], str) else game_paths[0].get("path", "./.minecraft")
-            game_path = params.get("gamePath", default_game_path)
-            
-            # 获取版本名
-            version_name = params.get("version", "")
-            if not version_name:
-                return {"success": False, "message": "游戏版本不能为空"}
-            
-            # 获取Java路径
-            java_path = params.get("javaPath", "")
-            if not java_path:
-                java_auto = game_config.get("java_auto", True)
-                if java_auto:
-                    from ..Game import java
-                    java_list = java.get_java_list()
-                    if java_list:
-                        java_list.sort(key=lambda x: x.version, reverse=True)
-                        java_path = str(java_list[0].path)
-                    else:
-                        return {"success": False, "message": "未找到Java安装"}
-                else:
-                    java_path = game_config.get("java_path", "")
-                    if not java_path:
-                        return {"success": False, "message": "未配置Java路径"}
-            
-            # 获取内存配置
-            memory = params.get("memory", {"min": 512, "max": 4096})
-            max_memory = memory.get("max", 4096) if isinstance(memory, dict) else 4096
-            
-            # 启动游戏
-            player_name = current_account.get("alias", "Player")
-            auth_uuid = current_account.get("uuid", "")
-            access_token = current_account.get("accessToken", "None") if current_account.get("type") == "microsoft" else "None"
-            user_type = "msa" if current_account.get("type") == "microsoft" else "legacy"
-            
-            instance_id = ""
-            
-            def launch():
-                nonlocal instance_id
-                try:
-                    instance_id = core.launch_minecraft(
-                        java_path=java_path,
-                        game_path=game_path,
-                        version_name=version_name,
-                        max_use_ram=max_memory,
-                        player_name=player_name,
-                        user_type=user_type,
-                        auth_uuid=auth_uuid,
-                        access_token=access_token
-                    )
-                except Exception as e:
-                    logger.error(f"启动游戏失败: {e}")
-            
-            thread = threading.Thread(target=launch, daemon=True)
-            thread.start()
-            thread.join(timeout=2)  # 等待启动完成以获取 instance_id
-            
-            if instance_id:
-                return {
-                    "success": True,
-                    "message": "实例启动中",
-                    "data": {"instanceId": instance_id, "version": version_name}
-                }
-            else:
-                return {"success": False, "message": "启动游戏失败"}
-        except Exception as e:
-            logger.error(f"启动实例失败: {e}")
-            return {"success": False, "message": str(e)}
+        """【待对接】启动游戏实例"""
+        return {"success": False, "message": "启动功能待对接", "data": None}
+
+    def get_launch_status(self, task_id: str) -> dict[str, Any]:
+        """【待对接】获取启动任务的进度状态"""
+        return {"success": False, "message": "启动进度查询功能待对接", "data": None}
 
     def stop_instance(self, instance_id: str) -> dict[str, Any]:
         """停止实例"""
@@ -1385,18 +1077,6 @@ class Api:
             return {"success": True, "message": "实例已停止"}
         except Exception as e:
             logger.error(f"停止实例失败: {e}")
-            return {"success": False, "message": str(e)}
-
-    def get_instance_logs(self, instance_id: str) -> dict[str, Any]:
-        """获取实例日志（预留接口）"""
-        try:
-            return {
-                "success": True,
-                "data": {"logs": []},
-                "message": "日志功能待实现"
-            }
-        except Exception as e:
-            logger.error(f"获取实例日志失败: {e}")
             return {"success": False, "message": str(e)}
 
 
