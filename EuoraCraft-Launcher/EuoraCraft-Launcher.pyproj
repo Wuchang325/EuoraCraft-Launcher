@@ -1,0 +1,135 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{a20d47d3-4e37-403b-b480-0d9cf70fab2a}</ProjectGuid>
+    <ProjectHome />
+    <StartupFile>main.py</StartupFile>
+    <SearchPath />
+    <WorkingDirectory>.</WorkingDirectory>
+    <OutputPath>.</OutputPath>
+    <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <InterpreterId>MSBuild|env|$(MSBuildProjectFullPath)</InterpreterId>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'" />
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'" />
+  <PropertyGroup>
+    <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="requirements.txt" />
+    <Content Include="resources\Skins\Alex.png" />
+    <Content Include="resources\Skins\Ari.png" />
+    <Content Include="resources\Skins\Efe.png" />
+    <Content Include="resources\Skins\Kai.png" />
+    <Content Include="resources\Skins\Makena.png" />
+    <Content Include="resources\Skins\Noor.png" />
+    <Content Include="resources\Skins\Steve.png" />
+    <Content Include="resources\Skins\Sunny.png" />
+    <Content Include="resources\Skins\Zuri.png" />
+    <Content Include="ui\dist\assets\Card-8KGhLijz.js" />
+    <Content Include="ui\dist\assets\Card-CJDQkr2l.css" />
+    <Content Include="ui\dist\assets\DevTools-B8xP1NmL.css" />
+    <Content Include="ui\dist\assets\DevTools-C55lbF_u.js" />
+    <Content Include="ui\dist\assets\Game-C1kW8xK4.css" />
+    <Content Include="ui\dist\assets\Game-wAYcXdMx.js" />
+    <Content Include="ui\dist\assets\gsap-Ccpyr059.js" />
+    <Content Include="ui\dist\assets\IconButton-BLA414lu.css" />
+    <Content Include="ui\dist\assets\IconButton-DSdiYUSK.js" />
+    <Content Include="ui\dist\assets\index-C9SuEkU9.css" />
+    <Content Include="ui\dist\assets\index-ko34mRKE.js" />
+    <Content Include="ui\dist\assets\Input-B6xJbqYU.css" />
+    <Content Include="ui\dist\assets\Input-OQSDTCvF.js" />
+    <Content Include="ui\dist\assets\Instances-Bzb3ox9y.css" />
+    <Content Include="ui\dist\assets\Instances-CObYlqYx.js" />
+    <Content Include="ui\dist\assets\ManageTab-DmAEh5L-.js" />
+    <Content Include="ui\dist\assets\ModsTab-uLwA6Wa6.js" />
+    <Content Include="ui\dist\assets\naive-ui-0YbN4u9w.js" />
+    <Content Include="ui\dist\assets\Settings-C2Vy0lFd.js" />
+    <Content Include="ui\dist\assets\Settings-DGWIWOXV.css" />
+    <Content Include="ui\dist\assets\Switch-DLSpPJSX.js" />
+    <Content Include="ui\dist\assets\Switch-PsD3G64s.css" />
+    <Content Include="ui\dist\assets\Tabs-BDXNY1wu.css" />
+    <Content Include="ui\dist\assets\Tabs-BEX17cTG.js" />
+    <Content Include="ui\dist\assets\Versions-8pSg71f8.css" />
+    <Content Include="ui\dist\assets\Versions-9la2oDts.js" />
+    <Content Include="ui\dist\assets\VersionsTab-8bh29acn.js" />
+    <Content Include="ui\dist\assets\VersionsTab-Ck47vjaQ.css" />
+    <Content Include="ui\dist\assets\vue-vendor-CYC_vYTf.js" />
+    <Content Include="ui\dist\favicon.ico" />
+    <Content Include="ui\dist\index.html" />
+    <Content Include="ui\dist\mouse-effect.html" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="ECL\Core\config.py" />
+    <Compile Include="ECL\Core\logger.py" />
+    <Compile Include="ECL\Core\__init__.py" />
+    <Compile Include="ECL\Game\AccountManager.py" />
+    <Compile Include="ECL\Game\Core.backup\C_Downloader.py" />
+    <Compile Include="ECL\Game\Core.backup\C_FilesChecker.py" />
+    <Compile Include="ECL\Game\Core.backup\C_GetGames.py" />
+    <Compile Include="ECL\Game\Core.backup\C_Libs.py" />
+    <Compile Include="ECL\Game\Core.backup\C_Skin.py" />
+    <Compile Include="ECL\Game\Core.backup\ECLauncherCore.py" />
+    <Compile Include="ECL\Game\Core.backup\InstancesManager.py" />
+    <Compile Include="ECL\Game\Core.backup\__init__.py" />
+    <Compile Include="ECL\Game\Core\C_Downloader.py" />
+    <Compile Include="ECL\Game\Core\C_FilesChecker.py" />
+    <Compile Include="ECL\Game\Core\C_GetGames.py" />
+    <Compile Include="ECL\Game\Core\C_Libs.py" />
+    <Compile Include="ECL\Game\Core\C_Skin.py" />
+    <Compile Include="ECL\Game\Core\ECLauncherCore.py" />
+    <Compile Include="ECL\Game\Core\InstancesManager.py" />
+    <Compile Include="ECL\Game\Core\__init__.py" />
+    <Compile Include="ECL\Game\java.py" />
+    <Compile Include="ECL\Game\MicrosoftAuth.py" />
+    <Compile Include="ECL\Game\__init__.py" />
+    <Compile Include="ECL\launcher.py" />
+    <Compile Include="ECL\ui\ui.py" />
+    <Compile Include="ECL\ui\__init__.py" />
+    <Compile Include="ECL\__init__.py" />
+    <Compile Include="main.py" />
+    <Compile Include="test\AIECLCore\C_Downloader.py" />
+    <Compile Include="test\AIECLCore\C_FilesChecker.py" />
+    <Compile Include="test\AIECLCore\C_GetGames.py" />
+    <Compile Include="test\AIECLCore\C_Libs.py" />
+    <Compile Include="test\AIECLCore\ECLauncherCore.py" />
+    <Compile Include="test\AIECLCore\__init__.py" />
+    <Compile Include="test\Core\C_Downloader.py" />
+    <Compile Include="test\Core\C_FilesChecker.py" />
+    <Compile Include="test\Core\C_GetGames.py" />
+    <Compile Include="test\Core\C_Libs.py" />
+    <Compile Include="test\Core\ECLauncherCore.py" />
+    <Compile Include="test\Core\__init__.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="ECL" />
+    <Folder Include="ECL\Core" />
+    <Folder Include="ECL\Game" />
+    <Folder Include="ECL\Game\Core" />
+    <Folder Include="ECL\Game\Core.backup" />
+    <Folder Include="ECL\ui" />
+    <Folder Include="resources\" />
+    <Folder Include="resources\Skins" />
+    <Folder Include="test\" />
+    <Folder Include="test\AIECLCore" />
+    <Folder Include="test\Core" />
+    <Folder Include="ui\" />
+    <Folder Include="ui\dist" />
+    <Folder Include="ui\dist\assets" />
+  </ItemGroup>
+  <ItemGroup>
+    <Interpreter Include="env\">
+      <Id>env</Id>
+      <Version>3.11</Version>
+      <Description>env (Python 3.11 (32-bit))</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X86</Architecture>
+    </Interpreter>
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
+</Project>
