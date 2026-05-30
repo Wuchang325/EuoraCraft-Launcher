@@ -1,12 +1,25 @@
 use pyo3::prelude::*;
 
 /// The pytauri extension module for EuoraCraft Launcher.
-/// This is the bridge between Rust/Tauri and Python.
-/// Python imports this via entry_points["pytauri"]["ext_mod"].
-#[pymodule]
-fn _pytauri_ext(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    // Register all pytauri bindings (Builder, App, Commands, Webview, etc.)
-    // This is provided by the `pytauri` crate, which depends on `pytauri-core`.
-    pytauri::pymodule_register(m)?;
-    Ok(())
+///
+/// Loaded by Python's `pytauri` package via the entry point `pytauri.ext_mod`.
+/// This module provides `builder_factory` and `context_factory` to the Python side.
+#[pymodule(gil_used = false)]
+#[pyo3(name = "_pytauri_ext")]
+pub mod _pytauri_ext {
+    use super::*;
+
+    #[pymodule_init]
+    fn init(module: &Bound<'_, PyModule>) -> PyResult<()> {
+        pytauri::pymodule_export(
+            module,
+            // context_factory: create Tauri context from generate_context!
+            |_args, _kwargs| Ok(tauri::generate_context!()),
+            // builder_factory: create the default Tauri builder
+            |_args, _kwargs| {
+                let builder = tauri::Builder::default();
+                Ok(builder)
+            },
+        )
+    }
 }

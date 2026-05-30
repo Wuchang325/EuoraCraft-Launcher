@@ -8,6 +8,8 @@
 use std::path::PathBuf;
 use std::env;
 
+use pyo3::types::PyAnyMethods;
+
 fn main() {
     // Initialize the Python interpreter
     pyo3::prepare_freethreaded_python();
