@@ -1,106 +1,51 @@
-import { ref, computed } from 'vue'
+/**
+ * User Agreement composable – now uses Tauri IPC via the api module.
+ */
+import { ref, readonly } from 'vue'
+import { api } from '@/api/client'
 
-declare global {
-  interface Window {
-    pywebview?: {
-      api: PyWebViewAPI
-    }
-  }
-}
+const isAccepted = ref(false)
+const isLoading = ref(true)
+const agreementUrl = 'https://github.com/ECLTeam/EuoraCraft-Launcher/blob/main/LICENSE'
 
-interface PyWebViewAPI {
-  get_user_agreement_status: () => Promise<{ success: boolean; data?: { accepted: boolean }; message?: string }>
-  save_user_agreement: () => Promise<{ success: boolean; message?: string }>
-  clear_user_agreement: () => Promise<{ success: boolean; message?: string }>
-}
-
-const USER_AGREEMENT_KEY = 'euoracraft_user_agreement_accepted'
-const USER_AGREEMENT_URL = 'https://euoracraft.zient.top/guide/user-agreement/'
-
-interface UserAgreementState {
-  accepted: boolean
-  loading: boolean
-}
-
-const state = ref<UserAgreementState>({
-  accepted: false,
-  loading: true
-})
-
-export async function checkUserAgreement(): Promise<boolean> {
-  state.value.loading = true
+async function checkUserAgreement(): Promise<boolean> {
   try {
-    const localAccepted = localStorage.getItem(USER_AGREEMENT_KEY) === 'true'
-    if (localAccepted) {
-      state.value.accepted = true
+    const result = await api.getUserAgreementStatus()
+    if (result.success && result.data?.accepted) {
+      isAccepted.value = true
       return true
     }
-
-    if (!window.pywebview?.api) {
-      state.value.accepted = false
-      return false
-    }
-
-    try {
-      const result = await window.pywebview.api.get_user_agreement_status()
-      if (result?.success && result?.data?.accepted) {
-        state.value.accepted = true
-        localStorage.setItem(USER_AGREEMENT_KEY, 'true')
-        return true
-      }
-    } catch (e) {
-      console.warn('[UserAgreement] 后端查询失败:', e)
-    }
-
-    state.value.accepted = false
+    return false
+  } catch (e) {
+    console.error('[UserAgreement] check failed:', e)
     return false
   } finally {
-    state.value.loading = false
+    isLoading.value = false
   }
 }
 
-export async function acceptUserAgreement(): Promise<boolean> {
+async function acceptUserAgreement(): Promise<boolean> {
   try {
-    if (window.pywebview?.api) {
-      const result = await window.pywebview.api.save_user_agreement()
-      if (!result?.success) {
-        throw new Error(result?.message || '保存用户协议失败')
-      }
+    const result = await api.saveUserAgreement()
+    if (result.success) {
+      isAccepted.value = true
+      return true
     }
-
-    localStorage.setItem(USER_AGREEMENT_KEY, 'true')
-    state.value.accepted = true
-    return true
+    return false
   } catch (e) {
-    console.error('[UserAgreement] 保存失败:', e)
+    console.error('[UserAgreement] accept failed:', e)
     return false
   }
 }
 
-export async function rejectUserAgreement(): Promise<void> {
-  localStorage.removeItem(USER_AGREEMENT_KEY)
-  state.value.accepted = false
-
-  if (window.pywebview?.api) {
-    try {
-      await window.pywebview.api.clear_user_agreement()
-    } catch (e) {
-      console.warn('[UserAgreement] 后端清除失败:', e)
-    }
-  }
-}
-
-export function useUserAgreement() {
-  const isAccepted = computed(() => state.value.accepted)
-  const isLoading = computed(() => state.value.loading)
-  const agreementUrl = computed(() => USER_AGREEMENT_URL)
-  
+function useUserAgreement() {
   return {
-    isAccepted,
-    isLoading,
+    isAccepted: readonly(isAccepted),
+    isLoading: readonly(isLoading),
     agreementUrl,
     checkUserAgreement,
     acceptUserAgreement,
-    rejectUserAgreement
   }
 }
+
+export { useUserAgreement, checkUserAgreement, acceptUserAgreement }

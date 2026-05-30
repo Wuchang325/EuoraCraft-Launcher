@@ -298,16 +298,14 @@ let saveTimer: any = null
 async function saveThemeConfig() {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(async () => {
-    if (window.pywebview?.api) {
-      try {
-        await api.updateThemeConfig({
-          mode: themeMode.value,
-          primary_color: primaryColor.value,
-          blur_amount: blurAmount.value
-        })
-      } catch (error) {
-        console.error('保存主题配置失败:', error)
-      }
+    try {
+      await api.updateThemeConfig({
+        mode: themeMode.value,
+        primary_color: primaryColor.value,
+        blur_amount: blurAmount.value
+      })
+    } catch (error) {
+      console.error('保存主题配置失败:', error)
     }
     localStorage.setItem(THEME_KEY, JSON.stringify({
       mode: themeMode.value,
@@ -343,12 +341,11 @@ export async function initTheme(
         localStorage.removeItem(BG_IMAGE_KEY)
       }
       
-      if (window.pywebview?.api) {
-        // 优先从后端加载配置，如果传入了预加载配置则直接使用
-        const [themeConfig, bgConfig] = await Promise.all([
-          preloadedTheme ? Promise.resolve(preloadedTheme) : api.getThemeConfig().catch(() => ({ success: false, data: null })),
-          preloadedBg ? Promise.resolve(preloadedBg) : api.getBackgroundConfig().catch(() => ({ success: false, data: null }))
-        ])
+      // 从后端加载配置，如果传入了预加载配置则直接使用
+      const [themeConfig, bgConfig] = await Promise.all([
+        preloadedTheme ? Promise.resolve(preloadedTheme) : api.getThemeConfig().catch(() => ({ success: false, data: null })),
+        preloadedBg ? Promise.resolve(preloadedBg) : api.getBackgroundConfig().catch(() => ({ success: false, data: null }))
+      ])
         
         // 应用主题配置
         if (themeConfig.success && themeConfig.data) {
@@ -391,18 +388,7 @@ export async function initTheme(
             backgroundImagePath.value = savedPath
           }
         }
-      } else {
-        // 没有后端API，使用本地存储
-        const saved = localStorage.getItem(THEME_KEY)
-        if (saved) themeMode.value = (JSON.parse(saved) as ThemeState).mode
-        primaryColor.value = localStorage.getItem(COLOR_KEY) || '#0078d4'
-        const savedPath = localStorage.getItem(BG_IMAGE_KEY)
-        if (savedPath && !savedPath.startsWith('data:')) {
-          backgroundImagePath.value = savedPath
-        }
-        const savedBlur = localStorage.getItem(BLUR_KEY)
-        if (savedBlur) blurAmount.value = parseInt(savedBlur)
-      }
+
     } catch (error) {
       console.error('初始化主题失败:', error)
       themeMode.value = 'system'

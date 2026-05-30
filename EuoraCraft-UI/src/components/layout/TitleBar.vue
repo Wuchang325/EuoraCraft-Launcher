@@ -1,5 +1,5 @@
 <template>
-  <div class="pywebview-drag-region">
+  <div data-tauri-drag-region>
   <header class="title-bar">
     <div class="title-bar-left">
       <!-- 全屏弹窗模式：显示关闭按钮和弹窗标题 -->
@@ -80,7 +80,9 @@ watch(() => fullscreenModal.isVisible.value, (val) => {
 }, 
 { immediate: true })*/
 
-const minimize = () => (window.pywebview?.api as any)?.minimize_window?.()
-const close = () => (window.pywebview?.api as any)?.close_window?.()
+import { invoke } from '@tauri-apps/api/core'
+
+const minimize = () => invoke('minimize_window')
+const close = () => invoke('close_window')
 const handleClose = () => fullscreenModal.close()
 </script>

@@ -1,0 +1,46 @@
+[package]
+name = "euoracraft-launcher"
+version = "0.1.0"
+edition = "2021"
+description = "EuoraCraft Launcher - Tauri v2 + pytauri"
+authors = ["ECLTeam <eclteam@eclteam.freeqiye.com>"]
+
+[lib]
+name = "euoracraft_launcher"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = ["isolation"] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-process = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+pyo3 = { version = "0.23", features = ["experimental-inspect", "extension-module"] }
+pytauri = { version = "0.8", features = [
+    "plugin-dialog",
+    "plugin-fs",
+    "plugin-shell",
+    "plugin-process",
+    "plugin-notification",
+    "plugin-opener",
+] }
+pytauri-core = { version = "0.8", features = [
+    "plugin-dialog",
+    "plugin-fs",
+    "plugin-shell",
+    "plugin-process",
+    "plugin-notification",
+    "plugin-opener",
+] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

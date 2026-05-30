@@ -125,7 +125,7 @@ import { useTheme } from '@/composables/useTheme'
 import { setMessageRef } from '@/composables/useGlassMessage'
 import { checkUserAgreement, acceptUserAgreement, useUserAgreement } from '@/composables/useUserAgreement'
 import { useFullscreenModal } from '@/composables/useFullscreenModal'
-import { api } from '@/api/client'
+import { api, ping, closeWindow } from '@/api/client'
 import { i18n, supportedLocales, setLocalStoredLocale } from '@/i18n'
 
 const { naiveTheme, themeOverrides, initTheme } = useTheme()
@@ -218,9 +218,14 @@ const handleAgreementReject = () => {
   showQuitConfirmModal.value = true
 }
 
-const handleQuitConfirm = () => {
+const handleQuitConfirm = async () => {
   showQuitConfirmModal.value = false
-  ;(window.pywebview?.api as any)?.close_window?.()
+  try {
+    await closeWindow()
+  } catch (e) {
+    console.error('[App] 关闭窗口失败:', e)
+    window.close()
+  }
 }
 
 onMounted(async () => {
@@ -239,28 +244,19 @@ onMounted(async () => {
     console.log('[App] 配置初始化完成')
   }
 
-  // 检查 pywebview API 是否可用
-  if (window.pywebview?.api) {
-    console.log('[App] pywebview API 已可用，开始初始化')
-    await init()
-  } else {
-    console.log('[App] 等待 pywebviewready 事件...')
-    window.addEventListener('pywebviewready', () => {
-      console.log('[App] pywebviewready 事件触发，开始初始化')
-      init()
-    })
-
-    // 添加超时检查，防止 pywebviewready 事件未触发
-    setTimeout(() => {
-      if (window.pywebview?.api) {
-        console.log('[App] 超时检查：pywebview API 已可用，开始初始化')
-        init()
-      } else {
-        console.warn('[App] 超时检查：pywebview API 仍未可用，尝试使用本地配置')
-        initTheme()
-      }
-    }, 3000)
+  // Tauri IPC: ping the backend to confirm the Python side is ready
+  console.log('[App] 开始初始化（Tauri IPC）')
+  try {
+    const pong = await ping()
+    if (pong.success) {
+      console.log('[App] 后端连接成功:', pong.data)
+    } else {
+      console.warn('[App] 后端ping失败，仍尝试初始化:', pong.message)
+    }
+  } catch (e) {
+    console.warn('[App] 后端未就绪，使用本地配置回退:', e)
   }
+  await init()
 })
 
 // 加载所有配置

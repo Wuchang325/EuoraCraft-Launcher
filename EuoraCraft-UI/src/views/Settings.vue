@@ -84,7 +84,7 @@ watch([themeMode, primaryColor, blurAmount, backgroundImagePath], ([newMode, new
 }, { immediate: true })
 
 const initSettings = async () => {
-  if (!window.pywebview?.api) return
+  // Tauri IPC: the api module handles connection automatically
 
   try {
     console.log('开始加载后端配置...')

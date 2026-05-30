@@ -1,6 +1,7 @@
 import { createI18n } from 'vue-i18n'
 import zhCN from './locales/zh-CN.json'
 import enUS from './locales/en-US.json'
+import { api } from '@/api/client'
 
 // 支持的语言列表
 export const supportedLocales = [
@@ -46,20 +47,14 @@ export const i18n = createI18n({
 // 从后端加载语言配置
 export async function loadLocaleFromBackend(): Promise<LocaleCode> {
   try {
-    // 检查 pywebview 是否可用
-    if (typeof window !== 'undefined' && window.pywebview?.api?.get_locale_config) {
-      const result = await window.pywebview.api.get_locale_config()
-      if (result.success && result.data?.locale) {
-        const locale = result.data.locale as LocaleCode
-        if (supportedLocales.some(l => l.code === locale)) {
-          // 更新 i18n 语言
-          i18n.global.locale.value = locale
-          // 同步到本地存储
-          setLocalStoredLocale(locale)
-          // 更新 HTML lang 属性
-          document.documentElement.setAttribute('lang', locale)
-          return locale
-        }
+    const result = await api.getLocaleConfig()
+    if (result.success && result.data?.locale) {
+      const locale = result.data.locale as LocaleCode
+      if (supportedLocales.some(l => l.code === locale)) {
+        i18n.global.locale.value = locale
+        setLocalStoredLocale(locale)
+        document.documentElement.setAttribute('lang', locale)
+        return locale
       }
     }
   } catch (error) {
@@ -75,11 +70,9 @@ export async function setLocale(locale: LocaleCode): Promise<void> {
   setLocalStoredLocale(locale)
   document.documentElement.setAttribute('lang', locale)
   
-  // 尝试保存到后端
+  // 保存到后端
   try {
-    if (typeof window !== 'undefined' && window.pywebview?.api?.update_locale_config) {
-      await window.pywebview.api.update_locale_config(locale)
-    }
+    await api.updateLocaleConfig(locale)
   } catch (error) {
     console.warn('[i18n] 保存语言配置到后端失败:', error)
   }

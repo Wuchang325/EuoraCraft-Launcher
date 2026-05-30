@@ -130,26 +130,26 @@ export function useAvatarRenderer() {
       const id = uuid?.trim()
       const name = username?.trim() || 'Player'
 
-      // 统一通过后端API获取头像，包括离线玩家
-      const api = (window as any).pywebview?.api
-      if (api?.get_avatar_data_url) {
-        try {
-          // 对于离线玩家，设置use_default_skin=true
-          const useDefaultSkin = !id || accountType.toLowerCase() === 'offline'
-          const serverType = useDefaultSkin ? 'Mojang' : accountType
-          const uuidToUse = id || '00000000-0000-0000-0000-000000000000'
-          
-          const result = await api.get_avatar_data_url(uuidToUse, serverType, undefined, size, useDefaultSkin)
-          if (result?.success && result.data?.dataUrl) {
-            const url = result.data.dataUrl
-            // 缓存成功获取的头像
-            setCache(uuidToUse, accountType, size, url)
-            loading.value = false
-            return url
-          }
-        } catch (e) {
-          console.warn('后端皮肤API调用失败，回退到前端生成:', e)
-          // 后端失败时回退到前端生成
+      // 尝试通过后端API获取头像（Tauri IPC），失败时回退到前端生成
+      try {
+        const useDefaultSkin = !id || accountType.toLowerCase() === 'offline'
+        const serverType = useDefaultSkin ? 'Mojang' : accountType
+        const uuidToUse = id || '00000000-0000-0000-0000-000000000000'
+        
+        const { invoke } = await import('@tauri-apps/api/core')
+        const result: any = await invoke('get_avatar_data_url', {
+          body: JSON.stringify({ uuid: uuidToUse, typeName: serverType, size, useDefaultSkin }),
+        })
+        if (result?.success && result.data?.dataUrl) {
+          const url = result.data.dataUrl
+          setCache(uuidToUse, accountType, size, url)
+          loading.value = false
+          return url
+        }
+      } catch (e) {
+        console.warn('后端皮肤API调用失败，回退到前端生成:', e)
+      }
+      // 后端失败时回退到前端生成
         }
       }
 
