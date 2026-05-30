@@ -62,6 +62,11 @@ Desktop.ini
 AGENTS.md
 .hintrc
 
+# ─── Redundant / legacy (cleaned up in pywebview-archive) ─
+ECL/Game/Core.backup/
+test/AIECLCore/
+ECLauncherCore/
+
 # ─── Misc ─────────────────────────────────────────────
 *.tmp
 *.bak
