@@ -1,5 +1,5 @@
 from . import C_Libs, C_FilesChecker
-from typing import Callable
+from typing import Any, Callable
 from pathlib import Path
 import requests
 import json
@@ -105,6 +105,41 @@ class GetGames:
             "Stable": stable_versions,
             "NotStable": not_stable_versions
         }
+
+    def scan_local_versions(self, game_path: str | Path) -> list[dict[str, Any]]:
+        game_path = Path(game_path)
+        versions_path = game_path / "versions"
+        versions_info: dict[str, Any] = {}
+        versions_info_path = versions_path / "VersionsInfo.json"
+
+        if versions_info_path.is_file():
+            try:
+                versions_info = json.loads(versions_info_path.read_text("utf-8"))
+            except Exception:
+                versions_info = {}
+
+        scanned: list[dict[str, Any]] = []
+        if not versions_path.is_dir():
+            return scanned
+
+        for version_dir in sorted(versions_path.iterdir()):
+            if not version_dir.is_dir():
+                continue
+            folder = version_dir.name
+            version_file = version_dir / f"{folder}.json"
+            status = "success" if version_file.is_file() else "failure"
+            version_info = versions_info.get(folder, {}) if isinstance(versions_info, dict) else {}
+            loader_type = version_info.get("Type") or "Vanilla"
+            scanned.append({
+                "folder": folder,
+                "status": status,
+                "loader_type": loader_type,
+                "version": folder,
+                "error": None if status == "success" else "缺少版本元数据",
+                "path": str(version_dir.resolve()),
+            })
+
+        return scanned
 
     def download_fabric(self, game_path: str | Path, game_version_id: str, fabric_version: str, download_vanilla:bool = True,
                         download_max_thread: int = 32, save_version_name: str | None = None):

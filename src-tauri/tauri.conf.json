@@ -6,8 +6,7 @@
   "build": {
     "frontendDist": "../EuoraCraft-UI/dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "cd ../EuoraCraft-UI && pnpm dev",
-    "beforeBuildCommand": "cd ../EuoraCraft-UI && pnpm build"
+    "beforeBuildCommand": "pnpm --prefix ../EuoraCraft-UI build"
   },
   "app": {
     "windows": [

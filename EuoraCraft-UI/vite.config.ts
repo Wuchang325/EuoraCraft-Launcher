@@ -1,9 +1,3 @@
-// vite.config.ts
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import { resolve } from 'path'
-import Components from 'unplugin-vue-components/vite'
-
 // vite.config.ts - EuoraCraft Launcher (Tauri v2 + pytauri)
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'

@@ -261,8 +261,6 @@ onMounted(async () => {
 
 // 加载所有配置
 const loadAllConfigs = async () => {
-  if (!window.pywebview?.api) return
-
   try {
     console.log('[App] 开始加载后端配置...')
 

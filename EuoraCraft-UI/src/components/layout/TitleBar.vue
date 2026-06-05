@@ -65,6 +65,7 @@ import '@/styles/components/TitleBar.css'
 import { 
   //watch, 
   computed } from 'vue'
+import { invoke } from '@tauri-apps/api/tauri'
 
 const { t } = useI18n()
 const { isDark, toggleTheme } = useTheme()

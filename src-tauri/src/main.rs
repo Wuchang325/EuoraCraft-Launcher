@@ -36,26 +36,41 @@ fn main() {
         let tauri_dir = app_root.join("src-tauri");
         syspath.call_method1("insert", (0, tauri_dir.to_str().unwrap())).unwrap();
 
-        // Run the Python launcher
-        if let Err(e) = py.import("launcher") {
-            eprintln!("Failed to import Python launcher: {}", e);
+        // Import the Python launcher module
+        let launcher_mod = match py.import("launcher") {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("Failed to import Python launcher: {}", e);
+                std::process::exit(1);
+            }
+        };
+
+        // Call launcher.main() to start the app
+        if let Err(e) = launcher_mod.call_method0("main") {
+            eprintln!("Failed to run Python launcher: {}", e);
             std::process::exit(1);
         }
     });
 }
 
 fn get_app_root() -> PathBuf {
-    // In development, the binary runs from src-tauri/
-    // In production, it's bundled with the app
     let exe = env::current_exe().unwrap();
     let exe_dir = exe.parent().unwrap();
     
-    // Check if we're in development (cargo run)
-    if exe_dir.join("Cargo.toml").exists() || exe_dir.join("../../Cargo.toml").exists() {
-        // Development: app root is the project root
-        exe_dir.parent().unwrap().to_path_buf()
-    } else {
-        // Production: app root is the same directory as the exe
-        exe_dir.to_path_buf()
+    // Binary in target/debug/ -> walk up to find Cargo.toml
+    let mut dir = Some(exe_dir);
+    while let Some(d) = dir {
+        if d.join("src-tauri").join("Cargo.toml").exists() {
+            // Found project root (parent of src-tauri/)
+            return d.to_path_buf();
+        }
+        if d.join("Cargo.toml").exists() {
+            // Cargo workspace root
+            return d.to_path_buf();
+        }
+        dir = d.parent();
     }
+    
+    // Fallback: same directory as the exe
+    exe_dir.to_path_buf()
 }

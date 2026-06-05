@@ -261,23 +261,7 @@ const {
 )
 
 // Fabric版本缓存
-const { 
-  data: fabricVersions,
-  fetchData: fetchFabricVersionsData 
-} = useAutoRefreshCache<string[]>(
-  CACHE_KEYS.FABRIC_VERSIONS,
-  async () => {
-    const res = await api.getFabricVersions()
-    if (res.success && res.data) {
-      return res.data.slice(0, 20)
-    }
-    throw new Error('获取Fabric版本失败')
-  },
-  {
-    ttl: 30 * 60 * 1000, // 30分钟缓存
-    group: CACHE_GROUPS.VERSION
-  }
-)
+const fabricVersions = ref<string[]>([])
 
 // 虚拟滚动相关状态
 const scrollContainerRef = ref<HTMLElement | null>(null)
@@ -388,7 +372,10 @@ async function fetchVersions() {
 
 async function fetchLoaderVersions() {
   try {
-    await fetchFabricVersionsData()
+    const res = await api.getFabricVersions(installForm.value.mcVersion)
+    if (res.success && res.data) {
+      fabricVersions.value = res.data.slice(0, 20)
+    }
   } catch (e) {
     console.error(t('versions.download.fetchFabricFailed'), e)
   }

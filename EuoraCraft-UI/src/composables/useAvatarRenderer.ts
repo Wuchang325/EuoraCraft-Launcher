@@ -136,7 +136,7 @@ export function useAvatarRenderer() {
         const serverType = useDefaultSkin ? 'Mojang' : accountType
         const uuidToUse = id || '00000000-0000-0000-0000-000000000000'
         
-        const { invoke } = await import('@tauri-apps/api/core')
+        const { invoke } = await import('@tauri-apps/api/tauri')
         const result: any = await invoke('get_avatar_data_url', {
           body: JSON.stringify({ uuid: uuidToUse, typeName: serverType, size, useDefaultSkin }),
         })
@@ -148,9 +148,6 @@ export function useAvatarRenderer() {
         }
       } catch (e) {
         console.warn('后端皮肤API调用失败，回退到前端生成:', e)
-      }
-      // 后端失败时回退到前端生成
-        }
       }
 
       // 后端API失败时，回退到前端生成

@@ -65,13 +65,15 @@ Desktop.ini
 AGENTS.md
 .hintrc
 
-# ─── Redundant / legacy (cleaned up in pywebview-archive) ─
-ECL/Game/Core.backup/
-test/AIECLCore/
-ECLauncherCore/
+# ─── Archive (old pywebview project) ──────────────────
+archive/
+
+# ─── Tests / Temp ───────────────────────────────
+tests/__pycache__/
 
 # ─── Pytauri / Build ────────────────────────────
 python/__pycache__/
+src-tauri/target/
 
 # ─── Misc ─────────────────────────────────────────────
 *.tmp

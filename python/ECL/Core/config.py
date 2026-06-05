@@ -2,6 +2,7 @@ import json
 import re
 from pathlib import Path
 from typing import Any, Optional
+from datetime import datetime
 from ..Core.logger import get_logger
 from ..Core import __version__, __version_type__
 
@@ -384,7 +385,8 @@ class ConfigManager:
         import uuid
         instance_id = str(uuid.uuid4())
         instance["id"] = instance_id
-        instance["created_at"] = str(uuid.uuid4())  # 临时时间戳
+        # 使用 ISO 时间戳记录创建时间，便于阅读与排序
+        instance["created_at"] = datetime.utcnow().isoformat() + "Z"
         
         self.config[0]["instances"].append(instance)
         self.save(self.config)

@@ -4,7 +4,7 @@
  * Replaces the old pywebview API bridge with Tauri invoke() calls.
  */
 
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/tauri'
 import type {
   ApiResponse,
   LauncherConfig,
@@ -17,6 +17,7 @@ import type {
   JavaInstallation,
   ScannedVersion,
   AccountInfo,
+  GameInstance,
 } from '@/types/api'
 
 const DEBUG = import.meta.env.DEV
@@ -127,7 +128,45 @@ export async function getJavaList(): Promise<ApiResponse<JavaInstallation[]>> {
 // ─── Version Scanning ────────────────────────────────
 
 export async function scanVersions(_paths: string[]): Promise<ApiResponse<ScannedVersion[]>> {
-  return call('scan_versions_in_path')
+  return call('scan_versions_in_path', { body: JSON.stringify({ paths: _paths }) })
+}
+
+export async function selectLocalImage(): Promise<ApiResponse<{ path: string }>> {
+  return call('select_local_image')
+}
+
+export async function selectDirectory(): Promise<ApiResponse<{ path: string }>> {
+  return call('select_directory')
+}
+
+export async function selectJavaExecutable(): Promise<ApiResponse<{ path: string }>> {
+  return call('select_java_executable')
+}
+
+export async function getMinecraftVersions(): Promise<ApiResponse<any>> {
+  return call('get_minecraft_versions')
+}
+
+export async function getFabricVersions(gameVersionId?: string): Promise<ApiResponse<string[]>> {
+  return call('get_fabric_versions', { body: JSON.stringify({ gameVersionId }) })
+}
+
+export async function launchInstance(params: {
+  version: string
+  gamePath?: string
+  javaPath?: string
+  maxMemory?: number
+  playerName?: string
+}): Promise<ApiResponse<{ taskId?: string }>> {
+  return call('launch_instance', { body: JSON.stringify(params) })
+}
+
+export async function getLaunchStatus(taskId: string): Promise<ApiResponse<{ completed: boolean; percent: number; stage: string; message: string; error?: string }>> {
+  return call('get_launch_status', { body: JSON.stringify({ taskId }) })
+}
+
+export async function uninstallVersion(version: string, gamePath?: string): Promise<ApiResponse<void>> {
+  return call('uninstall_version', { body: JSON.stringify({ version, gamePath }) })
 }
 
 // ─── Game Launch ─────────────────────────────────────
@@ -157,6 +196,10 @@ export async function addOfflineAccount(username: string): Promise<ApiResponse<a
 
 export async function startMicrosoftLogin(): Promise<ApiResponse<any>> {
   return call('start_microsoft_login')
+}
+
+export async function pollMicrosoftLogin(): Promise<ApiResponse<{ status: string; message: string; retry_after?: number }>> {
+  return call('poll_microsoft_login')
 }
 
 export async function completeMicrosoftLogin(): Promise<ApiResponse<any>> {
@@ -195,6 +238,26 @@ export async function toggleMaximize(): Promise<void> {
   await invoke('toggle_maximize')
 }
 
+// ─── Instances ────────────────────────────────────────
+
+export async function getGameInstances(): Promise<ApiResponse<GameInstance[]>> {
+  return call('get_game_instances')
+}
+
+export async function stopInstance(instanceId: string): Promise<ApiResponse<void>> {
+  return call('stop_instance', { body: JSON.stringify({ instanceId }) })
+}
+
+// ─── Background Image Upload ─────────────────────────
+
+export async function updateBackgroundImage(type: string, path: string): Promise<ApiResponse<void>> {
+  return call('update_background_image', { body: JSON.stringify({ type, path }) })
+}
+
+export async function loadImageFromUrl(url: string): Promise<ApiResponse<{ path: string }>> {
+  return call('load_image_from_url', { body: JSON.stringify({ url }) })
+}
+
 // ─── Singleton export ────────────────────────────────
 
 export const api = {
@@ -221,6 +284,14 @@ export const api = {
 
   // Version
   scanVersions,
+  selectLocalImage,
+  selectDirectory,
+  selectJavaExecutable,
+  getMinecraftVersions,
+  getFabricVersions,
+  launchInstance,
+  getLaunchStatus,
+  uninstallVersion,
 
   // Launch
   launchGame,
@@ -230,9 +301,18 @@ export const api = {
   getCurrentAccount,
   addOfflineAccount,
   startMicrosoftLogin,
+  pollMicrosoftLogin,
   completeMicrosoftLogin,
   switchAccount,
   removeAccount,
+
+  // Instances
+  getGameInstances,
+  stopInstance,
+
+  // Background Image Upload
+  updateBackgroundImage,
+  loadImageFromUrl,
 
   // Agreement
   getUserAgreementStatus,
