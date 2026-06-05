@@ -22,6 +22,9 @@ node_modules/
 dist-ssr/
 *.local
 
+# ─── UI (独立仓库) ─────────────────────────────────
+EuoraCraft-UI/
+
 # ─── Runtime Generated ────────────────────────────────
 ECL_Libs/Cache/
 ECL_Libs/user_agreement.json
@@ -71,9 +74,8 @@ archive/
 # ─── Tests / Temp ───────────────────────────────
 tests/__pycache__/
 
-# ─── Pytauri / Build ────────────────────────────
+# ─── Pytauri / Build (去重) ──────────────────────
 python/__pycache__/
-src-tauri/target/
 
 # ─── Misc ─────────────────────────────────────────────
 *.tmp
